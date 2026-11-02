@@ -118,6 +118,7 @@ import shiguangschedule.shared.generated.resources.label_glass_material
 import shiguangschedule.shared.generated.resources.label_glass_refraction
 import shiguangschedule.shared.generated.resources.label_glass_specular
 import shiguangschedule.shared.generated.resources.label_glass_tint_alpha
+import shiguangschedule.shared.generated.resources.style_category_glass_material
 import shiguangschedule.shared.generated.resources.label_hide_date_under_day
 import shiguangschedule.shared.generated.resources.label_hide_grid_lines
 import shiguangschedule.shared.generated.resources.label_hide_location
@@ -341,7 +342,7 @@ fun SettingsListContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        Text(stringResource(Res.string.label_glass_material), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text(stringResource(Res.string.style_category_glass_material), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         StyleSwitchItem(
             label = stringResource(Res.string.label_glass_material),
             checked = currentStyle.glassMaterialEnabled

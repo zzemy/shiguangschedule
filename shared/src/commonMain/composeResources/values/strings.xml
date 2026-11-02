@@ -525,7 +525,8 @@
     <string name="label_inner_padding">内部填充</string>
     <string name="label_outer_padding">外部间距</string>
     <string name="label_opacity">不透明度</string>
-    <string name="label_glass_material">高级玻璃材质</string>
+    <string name="style_category_glass_material">高级材质</string>
+    <string name="label_glass_material">启用玻璃材质</string>
     <string name="desc_glass_material">为课程卡和导航界面启用背景模糊、折射与高光</string>
     <string name="label_glass_blur_radius">玻璃模糊半径</string>
     <string name="label_glass_tint_alpha">玻璃染色强度</string>

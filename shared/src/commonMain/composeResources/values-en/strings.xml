@@ -477,7 +477,8 @@
     <string name="label_inner_padding">Inner Padding</string>
     <string name="label_outer_padding">Outer Spacing</string>
     <string name="label_opacity">Opacity</string>
-    <string name="label_glass_material">Glass material</string>
+    <string name="style_category_glass_material">Advanced material</string>
+    <string name="label_glass_material">Enable glass material</string>
     <string name="desc_glass_material">Enable backdrop blur, refraction and specular highlights for course cards and navigation surfaces</string>
     <string name="label_glass_blur_radius">Glass blur radius</string>
     <string name="label_glass_tint_alpha">Glass tint</string>

@@ -473,7 +473,8 @@
     <string name="label_inner_padding">內部填充</string>
     <string name="label_outer_padding">外部間距</string>
     <string name="label_opacity">不透明度</string>
-    <string name="label_glass_material">進階玻璃材質</string>
+    <string name="style_category_glass_material">進階材質</string>
+    <string name="label_glass_material">啟用玻璃材質</string>
     <string name="desc_glass_material">為課程卡和導覽介面啟用背景模糊、折射與高光</string>
     <string name="label_glass_blur_radius">玻璃模糊半徑</string>
     <string name="label_glass_tint_alpha">玻璃染色強度</string>
