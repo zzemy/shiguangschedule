@@ -272,6 +272,36 @@ class StyleSettingsRepository(
         it.copy(page_text_color_long = color?.toArgb()?.toLong())
     }
 
+    /** 设置是否启用高级玻璃材质 */
+    suspend fun setGlassMaterialEnabled(enabled: Boolean) = updateStyle {
+        it.copy(glass_material_enabled = enabled)
+    }
+
+    /** 设置玻璃模糊半径 (0 - 60 DP) */
+    suspend fun setGlassBlurRadius(radius: Float) = updateStyle {
+        it.copy(glass_blur_radius_dp = radius.coerceIn(0f, 60f))
+    }
+
+    /** 设置玻璃薄染透明度 (0 - 0.6) */
+    suspend fun setGlassTintAlpha(alpha: Float) = updateStyle {
+        it.copy(glass_tint_alpha = alpha.coerceIn(0f, 0.6f))
+    }
+
+    /** 设置玻璃边缘折射强度 (0 - 1) */
+    suspend fun setGlassRefractionStrength(strength: Float) = updateStyle {
+        it.copy(glass_refraction_strength = strength.coerceIn(0f, 1f))
+    }
+
+    /** 设置玻璃高光强度 (0 - 1) */
+    suspend fun setGlassSpecularIntensity(intensity: Float) = updateStyle {
+        it.copy(glass_specular_intensity = intensity.coerceIn(0f, 1f))
+    }
+
+    /** 设置玻璃色散强度 (0 - 1) */
+    suspend fun setGlassChromaticAberration(strength: Float) = updateStyle {
+        it.copy(glass_chromatic_aberration = strength.coerceIn(0f, 1f))
+    }
+
     /** 设置课程块文字颜色 */
     suspend fun setCourseTextColor(color: Color?) = updateStyle {
         it.copy(course_text_color_long = color?.toArgb()?.toLong())

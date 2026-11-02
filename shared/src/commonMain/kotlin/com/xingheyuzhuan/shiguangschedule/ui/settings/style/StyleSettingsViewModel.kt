@@ -285,6 +285,36 @@ class StyleSettingsViewModel(
         styleRepository.setStackClusterOrder(clusterKey, courseIds)
     }
 
+    /** 更新是否启用高级玻璃材质 */
+    fun updateGlassMaterialEnabled(enabled: Boolean) = viewModelScope.launch {
+        styleRepository.setGlassMaterialEnabled(enabled)
+    }
+
+    /** 更新玻璃模糊半径 (DP) */
+    fun updateGlassBlurRadius(radius: Float) = viewModelScope.launch {
+        styleRepository.setGlassBlurRadius(radius)
+    }
+
+    /** 更新玻璃薄染透明度 */
+    fun updateGlassTintAlpha(alpha: Float) = viewModelScope.launch {
+        styleRepository.setGlassTintAlpha(alpha)
+    }
+
+    /** 更新玻璃边缘折射强度 */
+    fun updateGlassRefractionStrength(strength: Float) = viewModelScope.launch {
+        styleRepository.setGlassRefractionStrength(strength)
+    }
+
+    /** 更新玻璃高光强度 */
+    fun updateGlassSpecularIntensity(intensity: Float) = viewModelScope.launch {
+        styleRepository.setGlassSpecularIntensity(intensity)
+    }
+
+    /** 更新玻璃色散强度 */
+    fun updateGlassChromaticAberration(strength: Float) = viewModelScope.launch {
+        styleRepository.setGlassChromaticAberration(strength)
+    }
+
     /** * 更新课程块字体的缩放比例
      * @param scale 缩放倍数，通常范围在 0.5 - 2.0 之间
      */

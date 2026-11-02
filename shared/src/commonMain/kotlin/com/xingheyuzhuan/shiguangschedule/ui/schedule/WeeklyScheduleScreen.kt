@@ -3,6 +3,7 @@ package com.xingheyuzhuan.shiguangschedule.ui.schedule
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -19,6 +21,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,6 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
@@ -69,6 +74,9 @@ import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.MergedCourseBlock
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.WeeklyScheduleUiState
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.util.StackOrderUtils
 import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalGlassChromeConfig
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassChromeColor
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassDemoBackdropBrush
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
@@ -198,6 +206,8 @@ private fun WeeklyScheduleContentLoaded(
     val composedStyle by remember(uiState.style) {
         derivedStateOf { with(ScheduleGridStyleComposed) { uiState.style.toComposedStyle() } }
     }
+    val glassEnabled = composedStyle.glassMaterialEnabled
+    val glassBlurRadius = if (glassEnabled) composedStyle.glassBlurRadiusDp.dp else 0.dp
 
     val floatingCourse = uiState.floatingCourse
 
@@ -251,13 +261,24 @@ private fun WeeklyScheduleContentLoaded(
     val dynamicBottomOffset = systemNavigationBarInset + (88.dp * (1f - navHideFraction))
 
     Box(modifier = Modifier.fillMaxSize()) {
-        uiState.wallpaperPath?.let { path ->
-            AsyncImage(
-                model = path,
+        when {
+            uiState.wallpaperPath != null -> AsyncImage(
+                model = uiState.wallpaperPath,
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(glassBlurRadius, edgeTreatment = BlurredEdgeTreatment.Unbounded),
                 contentScale = ContentScale.Crop
             )
+
+            glassEnabled -> {
+                // 无壁纸时提供一块柔和渐变，玻璃材质才有可采样的背景
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(glassDemoBackdropBrush(isDark))
+                )
+            }
         }
 
         Scaffold(
@@ -267,7 +288,21 @@ private fun WeeklyScheduleContentLoaded(
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
-                CenterAlignedTopAppBar(
+                Box(
+                    modifier = if (glassEnabled) {
+                        Modifier
+                            .fillMaxWidth()
+                            .background(
+                                glassChromeColor(
+                                    MaterialTheme.colorScheme.surface,
+                                    composedStyle.glassTintAlpha
+                                )
+                            )
+                    } else {
+                        Modifier
+                    }
+                ) {
+                    CenterAlignedTopAppBar(
                     title = {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -311,6 +346,7 @@ private fun WeeklyScheduleContentLoaded(
                     ),
                     scrollBehavior = scrollBehavior
                 )
+                }
             },
             snackbarHost = {
                 SnackbarHost(
@@ -625,7 +661,15 @@ private fun WeeklyScheduleContentLoaded(
 
         ModalBottomSheet(
             onDismissRequest = { stackOrderBlock = null },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = if (LocalGlassChromeConfig.current.enabled) {
+                glassChromeColor(
+                    MaterialTheme.colorScheme.surface,
+                    LocalGlassChromeConfig.current.tintAlpha
+                )
+            } else {
+                BottomSheetDefaults.ContainerColor
+            }
         ) {
             StackOrderSheetContent(
                 entries = entries,

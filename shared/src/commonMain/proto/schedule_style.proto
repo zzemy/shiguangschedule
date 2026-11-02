@@ -116,6 +116,14 @@ message ScheduleGridStyleProto {
   optional CourseTextColorModeProto course_text_color_mode = 32;
   optional float course_text_tint_strength = 33;   // 同色系浓度 0.0 - 1.0
   optional float course_text_contrast_ratio = 34;  // 主文字目标对比度 4.5 - 12.0
+
+  // 高级玻璃材质
+  optional bool glass_material_enabled = 35;        // 是否启用背景模糊 / 折射玻璃
+  optional float glass_blur_radius_dp = 36;         // 玻璃模糊半径 (DP)
+  optional float glass_tint_alpha = 37;             // 玻璃薄染透明度 0.0 - 0.6
+  optional float glass_refraction_strength = 38;    // 边缘折射强度 0.0 - 1.0
+  optional float glass_specular_intensity = 39;     // 高光强度 0.0 - 1.0
+  optional float glass_chromatic_aberration = 40;   // 色散强度 0.0 - 1.0
 }
 
 // 单个冲突格的堆叠顺序

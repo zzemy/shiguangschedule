@@ -17,6 +17,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -52,6 +53,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.MergedCourseBlock
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalGlassChromeConfig
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassChromeColor
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
@@ -99,6 +102,12 @@ fun CourseDetailBottomSheet(
     onDismissRequest: () -> Unit,
     onEditClick: (String) -> Unit
 ) {
+    val glassChrome = LocalGlassChromeConfig.current
+    val sheetColor = if (glassChrome.enabled) {
+        glassChromeColor(MaterialTheme.colorScheme.surface, glassChrome.tintAlpha)
+    } else {
+        BottomSheetDefaults.ContainerColor
+    }
     val rawCoursesList = remember(block) {
         block.clusterCourses.ifEmpty { block.courses }
     }
@@ -193,6 +202,7 @@ fun CourseDetailBottomSheet(
             initialValue = SheetValue.Hidden,
             enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
         ),
+        containerColor = sheetColor,
         sheetGesturesEnabled = false
     ) {
         Column(

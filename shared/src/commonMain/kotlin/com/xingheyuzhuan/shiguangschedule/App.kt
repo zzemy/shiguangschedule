@@ -13,6 +13,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,13 +22,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.metadata
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
 import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
+import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.tool.ExternalFileManager
 import com.xingheyuzhuan.shiguangschedule.ui.components.AdaptiveNavigationScaffold
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.WeeklyScheduleScreen
@@ -59,7 +63,10 @@ import com.xingheyuzhuan.shiguangschedule.ui.settings.time.SingleScheduleEditScr
 import com.xingheyuzhuan.shiguangschedule.ui.settings.time.TimeScheduleManagementScreen
 import com.xingheyuzhuan.shiguangschedule.ui.settings.update.UpdateRepoScreen
 import com.xingheyuzhuan.shiguangschedule.ui.theme.ShiguangScheduleTheme
+import com.xingheyuzhuan.shiguangschedule.ui.theme.GlassChromeConfig
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalGlassChromeConfig
 import com.xingheyuzhuan.shiguangschedule.ui.today.TodayScheduleScreen
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -92,6 +99,9 @@ fun AppNavigation(startDestination: Destination) {
     val currentDestination = backStack.lastOrNull() as? Destination ?: startDestination
 
     var navHideFraction by remember { mutableFloatStateOf(0f) }
+
+    val styleRepository: StyleSettingsRepository = koinInject()
+    val gridStyle by styleRepository.styleFlow.collectAsState(initial = ScheduleGridStyle.DEFAULT)
 
     val pendingFile by ExternalFileManager.pendingFile.collectAsState()
 
@@ -161,39 +171,48 @@ fun AppNavigation(startDestination: Destination) {
         }
     }
 
-    AdaptiveNavigationScaffold(
-        currentDestination = currentDestination,
-        onTabSelected = onNavigate,
-        showNavigation = showNavigation,
-        navHideFractionProvider = { navHideFraction }
-    ) { _ ->
-        NavDisplay(
-            backStack = backStack,
-            onBack = onBack,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = { transitionSpec },
-            popTransitionSpec = { popTransitionSpec },
-            predictivePopTransitionSpec = { predictivePopTransitionSpec },
-            entryDecorators = listOf(
-                rememberSaveableStateHolderNavEntryDecorator(),
-                rememberViewModelStoreNavEntryDecorator()
-            )
-        ) { key ->
-            val destination = key as Destination
+    CompositionLocalProvider(
+        LocalGlassChromeConfig provides GlassChromeConfig(
+            enabled = gridStyle.glassMaterialEnabled,
+            tintAlpha = gridStyle.glassTintAlpha
+        )
+    ) {
+        AdaptiveNavigationScaffold(
+            currentDestination = currentDestination,
+            onTabSelected = onNavigate,
+            showNavigation = showNavigation,
+            navHideFractionProvider = { navHideFraction },
+            glassEnabled = gridStyle.glassMaterialEnabled,
+            glassTintAlpha = gridStyle.glassTintAlpha
+        ) { _ ->
+            NavDisplay(
+                backStack = backStack,
+                onBack = onBack,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = { transitionSpec },
+                popTransitionSpec = { popTransitionSpec },
+                predictivePopTransitionSpec = { predictivePopTransitionSpec },
+                entryDecorators = listOf(
+                    rememberSaveableStateHolderNavEntryDecorator(),
+                    rememberViewModelStoreNavEntryDecorator()
+                )
+            ) { key ->
+                val destination = key as Destination
 
-            NavEntry(
-                key = key,
-                metadata = metadata {
-                    put(ShiguangNavMetadata.IsMainScreenKey, destination.isMainScreen)
-                }
-            ) {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    ScreenContent(
-                        targetDest = destination,
-                        onNavigate = onNavigate,
-                        onBack = onBack,
-                        onNavHideFractionChanged = { navHideFraction = it }
-                    )
+                NavEntry(
+                    key = key,
+                    metadata = metadata {
+                        put(ShiguangNavMetadata.IsMainScreenKey, destination.isMainScreen)
+                    }
+                ) {
+                    Surface(modifier = Modifier.fillMaxSize()) {
+                        ScreenContent(
+                            targetDest = destination,
+                            onNavigate = onNavigate,
+                            onBack = onBack,
+                            onNavHideFractionChanged = { navHideFraction = it }
+                        )
+                    }
                 }
             }
         }

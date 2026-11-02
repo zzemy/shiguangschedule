@@ -525,6 +525,13 @@
     <string name="label_inner_padding">内部填充</string>
     <string name="label_outer_padding">外部间距</string>
     <string name="label_opacity">不透明度</string>
+    <string name="label_glass_material">高级玻璃材质</string>
+    <string name="desc_glass_material">为课程卡和导航界面启用背景模糊、折射与高光</string>
+    <string name="label_glass_blur_radius">玻璃模糊半径</string>
+    <string name="label_glass_tint_alpha">玻璃染色强度</string>
+    <string name="label_glass_refraction">边缘折射强度</string>
+    <string name="label_glass_specular">高光强度</string>
+    <string name="label_glass_chromatic">色散强度</string>
     <string name="label_stack_conflict_courses">冲突课程堆叠显示</string>
     <string name="desc_stack_order">在课表上点击堆叠角标，调整该冲突格的显示顺序</string>
     <string name="title_stack_order">堆叠显示顺序</string>

@@ -96,6 +96,14 @@ data class ScheduleGridStyle(
     val stackConflictCourses: Boolean = false,
     val stackClusterOrders: List<StackClusterOrder> = emptyList(),
 
+    // 高级玻璃材质
+    val glassMaterialEnabled: Boolean = false,
+    val glassBlurRadiusDp: Float = 24f,
+    val glassTintAlpha: Float = 0.18f,
+    val glassRefractionStrength: Float = 0.8f,
+    val glassSpecularIntensity: Float = 0.6f,
+    val glassChromaticAberration: Float = 0.12f,
+
     // 小组件独立外观样式配置
     val widgetStyle: WidgetStyle = WidgetStyle.DEFAULT
 ) {
@@ -162,6 +170,12 @@ data class ScheduleGridStyle(
             courseTextContrastRatio = 6.0f,
             stackConflictCourses = false,
             stackClusterOrders = emptyList(),
+            glassMaterialEnabled = false,
+            glassBlurRadiusDp = 24f,
+            glassTintAlpha = 0.18f,
+            glassRefractionStrength = 0.8f,
+            glassSpecularIntensity = 0.6f,
+            glassChromaticAberration = 0.12f,
             widgetStyle = WidgetStyle.DEFAULT
         )
     }
@@ -259,6 +273,12 @@ fun ScheduleGridStyleProto.toCompose(): ScheduleGridStyle {
         stackClusterOrders = this.stack_cluster_orders.map {
             StackClusterOrder(clusterKey = it.cluster_key, courseIds = it.course_ids)
         },
+        glassMaterialEnabled = this.glass_material_enabled ?: d.glassMaterialEnabled,
+        glassBlurRadiusDp = this.glass_blur_radius_dp ?: d.glassBlurRadiusDp,
+        glassTintAlpha = this.glass_tint_alpha ?: d.glassTintAlpha,
+        glassRefractionStrength = this.glass_refraction_strength ?: d.glassRefractionStrength,
+        glassSpecularIntensity = this.glass_specular_intensity ?: d.glassSpecularIntensity,
+        glassChromaticAberration = this.glass_chromatic_aberration ?: d.glassChromaticAberration,
 
         // 8. 小组件独立样式映射
         widgetStyle = this.widget_style?.toCompose() ?: d.widgetStyle
@@ -303,6 +323,12 @@ fun ScheduleGridStyle.toProto(): ScheduleGridStyleProto {
                 course_ids = it.courseIds
             )
         },
+        glass_material_enabled = this.glassMaterialEnabled,
+        glass_blur_radius_dp = this.glassBlurRadiusDp,
+        glass_tint_alpha = this.glassTintAlpha,
+        glass_refraction_strength = this.glassRefractionStrength,
+        glass_specular_intensity = this.glassSpecularIntensity,
+        glass_chromatic_aberration = this.glassChromaticAberration,
         widget_style = this.widgetStyle.toProto()
     )
 }

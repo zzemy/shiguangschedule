@@ -52,6 +52,13 @@ data class ScheduleGridStyleComposed(
     val stackConflictCourses: Boolean,      // 冲突课程是否堆叠显示
     val stackClusterOrders: List<StackClusterOrder>, // 每个冲突格独立顺序
 
+    val glassMaterialEnabled: Boolean,      // 是否启用高级玻璃材质
+    val glassBlurRadiusDp: Float,           // 玻璃模糊半径
+    val glassTintAlpha: Float,              // 玻璃薄染透明度
+    val glassRefractionStrength: Float,     // 边缘折射强度
+    val glassSpecularIntensity: Float,      // 高光强度
+    val glassChromaticAberration: Float,    // 色散强度
+
     val pageTextColor: Color?, // 页面字符颜色
     val courseTextColor: Color?, // 课程块文字颜色
     val courseTextColorMode: CourseTextColorModeProto, // 课程文字配色模式
@@ -91,6 +98,12 @@ data class ScheduleGridStyleComposed(
                 scheduleMode = this.scheduleMode,
                 stackConflictCourses = this.stackConflictCourses,
                 stackClusterOrders = this.stackClusterOrders,
+                glassMaterialEnabled = this.glassMaterialEnabled,
+                glassBlurRadiusDp = this.glassBlurRadiusDp,
+                glassTintAlpha = this.glassTintAlpha,
+                glassRefractionStrength = this.glassRefractionStrength,
+                glassSpecularIntensity = this.glassSpecularIntensity,
+                glassChromaticAberration = this.glassChromaticAberration,
                 pageTextColor = this.pageTextColorLong?.let { Color(it) },
                 courseTextColor = this.courseTextColorLong?.let { Color(it) },
                 courseTextColorMode = this.courseTextColorMode,

@@ -53,6 +53,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -76,6 +78,8 @@ import com.xingheyuzhuan.shiguangschedule.ui.schedule.components.ScheduleGridVie
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.components.rememberScheduleGridState
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.MergedCourseBlock
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.WeeklyScheduleUiState
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassDemoBackdropBrush
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.TimeZone
@@ -94,6 +98,7 @@ import shiguangschedule.shared.generated.resources.border_type_dashed
 import shiguangschedule.shared.generated.resources.border_type_solid
 import shiguangschedule.shared.generated.resources.check_24px
 import shiguangschedule.shared.generated.resources.desc_course_text_tonal
+import shiguangschedule.shared.generated.resources.desc_glass_material
 import shiguangschedule.shared.generated.resources.desc_stack_order
 import shiguangschedule.shared.generated.resources.desc_wallpaper_set
 import shiguangschedule.shared.generated.resources.desc_wallpaper_unset
@@ -107,6 +112,12 @@ import shiguangschedule.shared.generated.resources.label_course_text_color
 import shiguangschedule.shared.generated.resources.label_course_text_tonal
 import shiguangschedule.shared.generated.resources.label_day_header_height
 import shiguangschedule.shared.generated.resources.label_font_scale
+import shiguangschedule.shared.generated.resources.label_glass_blur_radius
+import shiguangschedule.shared.generated.resources.label_glass_chromatic
+import shiguangschedule.shared.generated.resources.label_glass_material
+import shiguangschedule.shared.generated.resources.label_glass_refraction
+import shiguangschedule.shared.generated.resources.label_glass_specular
+import shiguangschedule.shared.generated.resources.label_glass_tint_alpha
 import shiguangschedule.shared.generated.resources.label_hide_date_under_day
 import shiguangschedule.shared.generated.resources.label_hide_grid_lines
 import shiguangschedule.shared.generated.resources.label_hide_location
@@ -330,6 +341,53 @@ fun SettingsListContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+        Text(stringResource(Res.string.label_glass_material), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        StyleSwitchItem(
+            label = stringResource(Res.string.label_glass_material),
+            checked = currentStyle.glassMaterialEnabled
+        ) { viewModel.updateGlassMaterialEnabled(it) }
+
+        if (currentStyle.glassMaterialEnabled) {
+            Text(
+                text = stringResource(Res.string.desc_glass_material),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+            SliderWithInputField(
+                stringResource(Res.string.label_glass_blur_radius),
+                currentStyle.glassBlurRadiusDp,
+                8f..40f,
+                1f
+            ) { viewModel.updateGlassBlurRadius(it) }
+            SliderWithInputField(
+                stringResource(Res.string.label_glass_tint_alpha),
+                currentStyle.glassTintAlpha,
+                0f..0.4f,
+                0.02f
+            ) { viewModel.updateGlassTintAlpha(it) }
+            SliderWithInputField(
+                stringResource(Res.string.label_glass_refraction),
+                currentStyle.glassRefractionStrength,
+                0f..1f,
+                0.05f
+            ) { viewModel.updateGlassRefractionStrength(it) }
+            SliderWithInputField(
+                stringResource(Res.string.label_glass_specular),
+                currentStyle.glassSpecularIntensity,
+                0f..1f,
+                0.05f
+            ) { viewModel.updateGlassSpecularIntensity(it) }
+            SliderWithInputField(
+                stringResource(Res.string.label_glass_chromatic),
+                currentStyle.glassChromaticAberration,
+                0f..0.5f,
+                0.02f
+            ) { viewModel.updateGlassChromaticAberration(it) }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
         Text(stringResource(Res.string.style_category_color_scheme), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
 
         ColorSchemeSection(
@@ -474,21 +532,32 @@ fun ScheduleGridContent(
     }
 
     val hasWallpaper = !wallpaperPath.isNullOrEmpty()
+    val isDark = LocalIsDarkTheme.current
+    val glassEnabled = style.glassMaterialEnabled
+    val glassBlurRadius = if (glassEnabled) style.glassBlurRadiusDp.dp else 0.dp
 
-    val backgroundModifier = if (hasWallpaper) {
-        Modifier.fillMaxSize()
-    } else {
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-    }
-
-    Box(modifier = backgroundModifier) {
-        if (hasWallpaper) {
-            AsyncImage(
+    Box(modifier = Modifier.fillMaxSize()) {
+        when {
+            hasWallpaper -> AsyncImage(
                 model = wallpaperPath,
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(glassBlurRadius, edgeTreatment = BlurredEdgeTreatment.Unbounded),
                 contentScale = ContentScale.Crop,
                 alignment = Alignment.TopCenter
+            )
+
+            glassEnabled -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(glassDemoBackdropBrush(isDark))
+            )
+
+            else -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
             )
         }
 

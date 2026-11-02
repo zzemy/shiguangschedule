@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xingheyuzhuan.shiguangschedule.Destination
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassChromeColor
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import shiguangschedule.shared.generated.resources.Res
@@ -90,6 +91,8 @@ fun AdaptiveNavigationScaffold(
     showNavigation: Boolean = true,
     navHideFractionProvider: () -> Float = { 0f },
     navigationModifier: Modifier = Modifier,
+    glassEnabled: Boolean = false,
+    glassTintAlpha: Float = 0.18f,
     content: @Composable (PaddingValues) -> Unit
 ) {
     val todayLabel = stringResource(Res.string.nav_today_schedule)
@@ -143,7 +146,11 @@ fun AdaptiveNavigationScaffold(
                         exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(tween(300))
                     ) {
                         NavigationRail(
-                            containerColor = NavigationBarDefaults.containerColor,
+                            containerColor = if (glassEnabled) {
+                                glassChromeColor(MaterialTheme.colorScheme.surface, glassTintAlpha)
+                            } else {
+                                NavigationBarDefaults.containerColor
+                            },
                             modifier = Modifier.fillMaxHeight()
                         ) {
                             navItems.forEach { item ->
@@ -179,7 +186,9 @@ fun AdaptiveNavigationScaffold(
                 val navBarTotalHeightPx = with(density) { 88.dp.toPx() } + navBarBottomInsetPx
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    content(PaddingValues(0.dp))
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        content(PaddingValues(0.dp))
+                    }
 
                     AnimatedVisibility(
                         visible = showNavigation,
@@ -202,9 +211,13 @@ fun AdaptiveNavigationScaffold(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = NavigationBarDefaults.containerColor,
+                                color = if (glassEnabled) {
+                                    glassChromeColor(MaterialTheme.colorScheme.surface, glassTintAlpha)
+                                } else {
+                                    NavigationBarDefaults.containerColor
+                                },
                                 shadowElevation = 0.dp,
-                                tonalElevation = 3.dp
+                                tonalElevation = if (glassEnabled) 0.dp else 3.dp
                             ) {
                                 FixedWidthNavBarContainer(
                                     navItems = navItems,

@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -27,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalGlassChromeConfig
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassChromeColor
 import org.jetbrains.compose.resources.stringResource
 import shiguangschedule.shared.generated.resources.Res
 import shiguangschedule.shared.generated.resources.title_select_week
@@ -48,6 +51,12 @@ fun WeekSelectorBottomSheet(
     onWeekSelected: (Int) -> Unit,
     onDismissRequest: () -> Unit
 ) {
+    val glassChrome = LocalGlassChromeConfig.current
+    val sheetColor = if (glassChrome.enabled) {
+        glassChromeColor(MaterialTheme.colorScheme.surface, glassChrome.tintAlpha)
+    } else {
+        BottomSheetDefaults.ContainerColor
+    }
     val gridState = rememberLazyGridState()
 
     // 默认滚动到当前周
@@ -63,7 +72,8 @@ fun WeekSelectorBottomSheet(
         sheetState = rememberBottomSheetState(
             initialValue = SheetValue.Hidden,
             enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
-        )
+        ),
+        containerColor = sheetColor
     ) {
         Column(
             modifier = Modifier
