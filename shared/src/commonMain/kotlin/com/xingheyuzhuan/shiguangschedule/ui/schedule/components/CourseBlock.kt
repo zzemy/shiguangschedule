@@ -45,7 +45,9 @@ import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.BorderTypePr
 import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.ScheduleModeProto
 import com.xingheyuzhuan.shiguangschedule.ui.theme.rememberCourseTextColors
 import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
-import com.xingheyuzhuan.shiguangschedule.ui.theme.rememberGlassBorderBrush
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassCourseSurface
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassTextBackdrop
+import com.xingheyuzhuan.shiguangschedule.ui.theme.glassTintColor
 import org.jetbrains.compose.resources.stringResource
 import shiguangschedule.shared.generated.resources.Res
 import shiguangschedule.shared.generated.resources.a11y_stacked_hidden_courses
@@ -76,13 +78,25 @@ fun CourseBlock(
     val baseColor = courseColorAdapted ?: fallbackColorAdapted
     val useGlass = style.glassMaterialEnabled
 
-    val currentAlpha = when {
-        isFloating -> 0.95f
-        useGlass -> style.glassTintAlpha.coerceIn(0f, 0.6f)
-        else -> style.courseBlockAlpha
-    }
+    // 玻璃材质使用浅色变体做柔光染色，深色变体只负责普通模式下的不透明底色。
+    val glassTintSource = colorIndex?.let { style.courseColorMaps[it].light }
+        ?: style.courseColorMaps.firstOrNull()?.light
+        ?: baseColor
+    val glassTint = glassTintColor(glassTintSource, isDarkTheme)
+
+    val currentAlpha = if (isFloating) 0.95f else style.courseBlockAlpha
     val blockColor = baseColor.copy(alpha = currentAlpha)
-    val effectiveBackground = blockColor.compositeOver(MaterialTheme.colorScheme.surface)
+    // 玻璃会抬升表面亮度，文字对比度必须按玻璃最终表面估算，而不是按深色课程块估算。
+    val effectiveBackground = if (useGlass) {
+        glassTextBackdrop(
+            surface = MaterialTheme.colorScheme.surface,
+            tintColor = glassTint,
+            tintAlpha = style.glassTintAlpha,
+            isDark = isDarkTheme
+        )
+    } else {
+        blockColor.compositeOver(MaterialTheme.colorScheme.surface)
+    }
     val textColors = rememberCourseTextColors(
         background = effectiveBackground,
         mode = style.courseTextColorMode,
@@ -164,18 +178,6 @@ fun CourseBlock(
     } else {
         Modifier
     }
-    val chromaticTint = baseColor.copy(alpha = style.glassChromaticAberration.coerceIn(0f, 1f) * 0.18f)
-    val glassBorderBrush = rememberGlassBorderBrush(
-        isDark = isDarkTheme,
-        specularIntensity = style.glassSpecularIntensity,
-        refractionStrength = style.glassRefractionStrength,
-        chromaticTint = chromaticTint
-    )
-    val glassEdgeModifier = if (useGlass && style.borderType == BorderTypeProto.BORDER_TYPE_NONE) {
-        Modifier.border(width = 1.dp, brush = glassBorderBrush, shape = shape)
-    } else {
-        Modifier
-    }
 
     // 堆叠格先铺一层不透明底色，避免课程块透明度把下层课程透出来；
     // 玻璃材质本身负责背景采样，不能再铺不透明底色。
@@ -186,23 +188,16 @@ fun CourseBlock(
     }
 
     val contentBackground = if (useGlass) {
-        Modifier
-            .background(
-                MaterialTheme.colorScheme.surface.copy(
-                    alpha = if (isDarkTheme) 0.32f else 0.38f
-                )
-            )
-            .background(color = blockColor)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = if (isDarkTheme) 0.06f else 0.14f),
-                        chromaticTint,
-                        Color.Transparent,
-                        Color.Black.copy(alpha = if (isDarkTheme) 0.10f else 0.04f)
-                    )
-                )
-            )
+        Modifier.glassCourseSurface(
+            shape = shape,
+            isDark = isDarkTheme,
+            tintColor = glassTint,
+            tintAlpha = style.glassTintAlpha,
+            specularIntensity = style.glassSpecularIntensity,
+            refractionStrength = style.glassRefractionStrength,
+            chromaticAberration = style.glassChromaticAberration,
+            floating = isFloating
+        )
     } else {
         Modifier.background(color = blockColor)
     }
@@ -213,7 +208,6 @@ fun CourseBlock(
             .fillMaxSize()
             .clip(shape)
             .then(borderModifier)
-            .then(glassEdgeModifier)
             .then(stackOpacityBacking)
             .then(contentBackground)
     ) {

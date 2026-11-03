@@ -78,8 +78,7 @@ import com.xingheyuzhuan.shiguangschedule.ui.schedule.components.ScheduleGridVie
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.components.rememberScheduleGridState
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.MergedCourseBlock
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.WeeklyScheduleUiState
-import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
-import com.xingheyuzhuan.shiguangschedule.ui.theme.glassDemoBackdropBrush
+import com.xingheyuzhuan.shiguangschedule.ui.theme.GlassDemoBackdrop
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.TimeZone
@@ -533,7 +532,6 @@ fun ScheduleGridContent(
     }
 
     val hasWallpaper = !wallpaperPath.isNullOrEmpty()
-    val isDark = LocalIsDarkTheme.current
     val glassEnabled = style.glassMaterialEnabled
     val glassBlurRadius = if (glassEnabled) style.glassBlurRadiusDp.dp else 0.dp
 
@@ -549,11 +547,7 @@ fun ScheduleGridContent(
                 alignment = Alignment.TopCenter
             )
 
-            glassEnabled -> Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(glassDemoBackdropBrush(isDark))
-            )
+            glassEnabled -> GlassDemoBackdrop()
 
             else -> Box(
                 modifier = Modifier

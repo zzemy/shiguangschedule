@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xingheyuzhuan.shiguangschedule.Destination
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
 import com.xingheyuzhuan.shiguangschedule.ui.theme.glassChromeColor
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
@@ -95,6 +96,7 @@ fun AdaptiveNavigationScaffold(
     glassTintAlpha: Float = 0.18f,
     content: @Composable (PaddingValues) -> Unit
 ) {
+    val isDark = LocalIsDarkTheme.current
     val todayLabel = stringResource(Res.string.nav_today_schedule)
     val courseLabel = stringResource(Res.string.nav_course_schedule)
     val settingsLabel = stringResource(Res.string.nav_settings)
@@ -147,7 +149,7 @@ fun AdaptiveNavigationScaffold(
                     ) {
                         NavigationRail(
                             containerColor = if (glassEnabled) {
-                                glassChromeColor(MaterialTheme.colorScheme.surface, glassTintAlpha)
+                                glassChromeColor(MaterialTheme.colorScheme.surface, glassTintAlpha, isDark)
                             } else {
                                 NavigationBarDefaults.containerColor
                             },
@@ -212,7 +214,7 @@ fun AdaptiveNavigationScaffold(
                             Surface(
                                 shape = CircleShape,
                                 color = if (glassEnabled) {
-                                    glassChromeColor(MaterialTheme.colorScheme.surface, glassTintAlpha)
+                                    glassChromeColor(MaterialTheme.colorScheme.surface, glassTintAlpha, isDark)
                                 } else {
                                     NavigationBarDefaults.containerColor
                                 },

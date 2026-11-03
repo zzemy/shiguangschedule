@@ -76,7 +76,7 @@ import com.xingheyuzhuan.shiguangschedule.ui.schedule.util.StackOrderUtils
 import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
 import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalGlassChromeConfig
 import com.xingheyuzhuan.shiguangschedule.ui.theme.glassChromeColor
-import com.xingheyuzhuan.shiguangschedule.ui.theme.glassDemoBackdropBrush
+import com.xingheyuzhuan.shiguangschedule.ui.theme.GlassDemoBackdrop
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
@@ -272,12 +272,8 @@ private fun WeeklyScheduleContentLoaded(
             )
 
             glassEnabled -> {
-                // 无壁纸时提供一块柔和渐变，玻璃材质才有可采样的背景
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(glassDemoBackdropBrush(isDark))
-                )
+                // 无壁纸时提供柔和的彩色光斑，玻璃材质才有可采样的背景
+                GlassDemoBackdrop()
             }
         }
 
@@ -295,7 +291,8 @@ private fun WeeklyScheduleContentLoaded(
                             .background(
                                 glassChromeColor(
                                     MaterialTheme.colorScheme.surface,
-                                    composedStyle.glassTintAlpha
+                                    composedStyle.glassTintAlpha,
+                                    isDark
                                 )
                             )
                     } else {
@@ -665,7 +662,8 @@ private fun WeeklyScheduleContentLoaded(
             containerColor = if (LocalGlassChromeConfig.current.enabled) {
                 glassChromeColor(
                     MaterialTheme.colorScheme.surface,
-                    LocalGlassChromeConfig.current.tintAlpha
+                    LocalGlassChromeConfig.current.tintAlpha,
+                    isDark
                 )
             } else {
                 BottomSheetDefaults.ContainerColor

@@ -98,10 +98,10 @@ data class ScheduleGridStyle(
 
     // 高级玻璃材质
     val glassMaterialEnabled: Boolean = false,
-    val glassBlurRadiusDp: Float = 24f,
-    val glassTintAlpha: Float = 0.18f,
-    val glassRefractionStrength: Float = 0.8f,
-    val glassSpecularIntensity: Float = 0.6f,
+    val glassBlurRadiusDp: Float = 30f,
+    val glassTintAlpha: Float = 0.22f,
+    val glassRefractionStrength: Float = 0.7f,
+    val glassSpecularIntensity: Float = 0.8f,
     val glassChromaticAberration: Float = 0.12f,
 
     // 小组件独立外观样式配置
@@ -171,10 +171,10 @@ data class ScheduleGridStyle(
             stackConflictCourses = false,
             stackClusterOrders = emptyList(),
             glassMaterialEnabled = false,
-            glassBlurRadiusDp = 24f,
-            glassTintAlpha = 0.18f,
-            glassRefractionStrength = 0.8f,
-            glassSpecularIntensity = 0.6f,
+            glassBlurRadiusDp = 30f,
+            glassTintAlpha = 0.22f,
+            glassRefractionStrength = 0.7f,
+            glassSpecularIntensity = 0.8f,
             glassChromaticAberration = 0.12f,
             widgetStyle = WidgetStyle.DEFAULT
         )

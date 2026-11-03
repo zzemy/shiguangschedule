@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalGlassChromeConfig
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
 import com.xingheyuzhuan.shiguangschedule.ui.theme.glassChromeColor
 import org.jetbrains.compose.resources.stringResource
 import shiguangschedule.shared.generated.resources.Res
@@ -52,8 +53,9 @@ fun WeekSelectorBottomSheet(
     onDismissRequest: () -> Unit
 ) {
     val glassChrome = LocalGlassChromeConfig.current
+    val isDark = LocalIsDarkTheme.current
     val sheetColor = if (glassChrome.enabled) {
-        glassChromeColor(MaterialTheme.colorScheme.surface, glassChrome.tintAlpha)
+        glassChromeColor(MaterialTheme.colorScheme.surface, glassChrome.tintAlpha, isDark)
     } else {
         BottomSheetDefaults.ContainerColor
     }

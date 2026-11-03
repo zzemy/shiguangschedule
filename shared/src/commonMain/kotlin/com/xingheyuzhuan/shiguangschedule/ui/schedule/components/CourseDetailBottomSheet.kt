@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.MergedCourseBlock
 import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalGlassChromeConfig
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
 import com.xingheyuzhuan.shiguangschedule.ui.theme.glassChromeColor
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringArrayResource
@@ -103,8 +104,9 @@ fun CourseDetailBottomSheet(
     onEditClick: (String) -> Unit
 ) {
     val glassChrome = LocalGlassChromeConfig.current
+    val isDark = LocalIsDarkTheme.current
     val sheetColor = if (glassChrome.enabled) {
-        glassChromeColor(MaterialTheme.colorScheme.surface, glassChrome.tintAlpha)
+        glassChromeColor(MaterialTheme.colorScheme.surface, glassChrome.tintAlpha, isDark)
     } else {
         BottomSheetDefaults.ContainerColor
     }
