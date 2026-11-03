@@ -1,14 +1,14 @@
 name: Fork Release (Android)
 
 # 触发方式：
-# 1. 推送 v* 标签，例如 git tag v2.1.0-glass.1 && git push fork v2.1.0-glass.1
+# 1. 推送 v* 标签，例如 git tag v2.1.0-noglass.1 && git push fork v2.1.0-noglass.1
 # 2. 或在 Actions 页面手动运行，填写 tag。
 #
 # 签名（可选但强烈建议）：
 # 在 fork 仓库 Settings → Secrets and variables → Actions 中添加：
 #   KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD
-# 未配置时会回退到 debug 签名，便于测试；不同 Run 的 debug 签名可能不同，
-# 覆盖安装前请先卸载旧版本。
+# 未配置时会生成临时调试签名，但仍然构建 release APK（已优化、非 debuggable）；
+# 不同 Run 的签名可能不同，覆盖安装前请先卸载旧版本。
 
 on:
   push:
@@ -51,45 +51,56 @@ jobs:
       - name: 设置 Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: 解码签名密钥
+      - name: 准备签名
         id: signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > androidApp/release.jks
+            STORE_FILE="$RUNNER_TEMP/release.jks"
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$STORE_FILE"
+            STORE_PASSWORD="$KEYSTORE_PASSWORD"
+            KEY_ALIAS_VALUE="$KEY_ALIAS"
+            KEY_PASSWORD_VALUE="$KEY_PASSWORD"
             echo "signed=true" >> "$GITHUB_OUTPUT"
             echo "使用 Release 签名。"
           else
+            STORE_FILE="$RUNNER_TEMP/fork-debug.jks"
+            keytool -genkeypair -v \
+              -keystore "$STORE_FILE" \
+              -storepass android -keypass android \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            STORE_PASSWORD="android"
+            KEY_ALIAS_VALUE="androiddebugkey"
+            KEY_PASSWORD_VALUE="android"
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::未配置 KEYSTORE_BASE64，本次使用 debug 签名，覆盖安装前请卸载旧版本。"
+            echo "::warning::未配置 KEYSTORE_BASE64，本次用临时调试签名构建 release APK（已优化、非 debuggable）；签名随每次运行变化，覆盖安装前请先卸载旧版本。"
           fi
+          {
+            echo "SIGNING_STORE_FILE=$STORE_FILE"
+            echo "SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "SIGNING_KEY_ALIAS=$KEY_ALIAS_VALUE"
+            echo "SIGNING_KEY_PASSWORD=$KEY_PASSWORD_VALUE"
+          } >> "$GITHUB_ENV"
 
       - name: 构建 Release APK
-        if: steps.signing.outputs.signed == 'true'
         run: |
           chmod +x ./gradlew
           ./gradlew :androidApp:assembleRelease \
-            -Pandroid.injected.signing.store.file="${{ github.workspace }}/androidApp/release.jks" \
-            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
-            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
-            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}" \
+            -Pandroid.injected.signing.store.file="$SIGNING_STORE_FILE" \
+            -Pandroid.injected.signing.store.password="$SIGNING_STORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$SIGNING_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$SIGNING_KEY_PASSWORD" \
             --stacktrace
-
-      - name: 构建 Debug APK（无签名密钥时的回退）
-        if: steps.signing.outputs.signed != 'true'
-        run: |
-          chmod +x ./gradlew
-          ./gradlew :androidApp:assembleDebug --stacktrace
 
       - name: 收集 APK
         run: |
           mkdir -p dist
-          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
-            cp androidApp/build/outputs/apk/release/*.apk dist/
-          else
-            cp androidApp/build/outputs/apk/debug/*.apk dist/
-          fi
+          cp androidApp/build/outputs/apk/release/*.apk dist/
           ls -lh dist
 
       - name: 解析 Release 标签
