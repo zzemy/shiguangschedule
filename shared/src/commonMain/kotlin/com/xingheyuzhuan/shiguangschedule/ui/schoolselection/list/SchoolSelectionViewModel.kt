@@ -11,6 +11,12 @@ import school_index.AdapterCategory
 import school_index.School
 import org.koin.core.annotation.KoinViewModel
 
+private const val NJUPT_NAME_KEYWORD = "南京邮电"
+
+/** 判断是否为南邮专属推荐学校。 */
+internal fun School.isNjuptRecommendedSchool(): Boolean =
+    name.contains(NJUPT_NAME_KEYWORD, ignoreCase = true)
+
 /**
  * 负责一级学校选择页面的数据管理、状态维护和过滤逻辑。
  * 使用 Koin 注解注入所需的 Repository 实例。
@@ -66,7 +72,7 @@ class SchoolSelectionViewModel(
             school.adapters.any { adapter -> adapter.category == category }
         }
 
-        if (query.isBlank()) {
+        val result = if (query.isBlank()) {
             categoryFiltered
         } else {
             categoryFiltered.filter { school ->
@@ -74,6 +80,9 @@ class SchoolSelectionViewModel(
                         school.initial.contains(query, ignoreCase = true)
             }
         }
+        // 南邮专属版：将南京邮电大学强制置顶在第一位，免去用户搜索翻找
+        val (njuptList, otherList) = result.partition { it.isNjuptRecommendedSchool() }
+        njuptList + otherList
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),

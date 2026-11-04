@@ -50,6 +50,7 @@ class TodayScheduleViewModel(
 ) : ViewModel() {
 
     companion object {
+        const val DEFAULT_NJUPT_CLASS_CODE = "B000000"
         private const val DEFAULT_SEMESTER_TOTAL_WEEKS = 20
         private const val MAX_TIME_SORT_KEY = "99:99"
     }
@@ -57,9 +58,14 @@ class TodayScheduleViewModel(
     val gridStyle: StateFlow<ScheduleGridStyle> = styleSettingsRepository.styleFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScheduleGridStyle())
 
-    /** 上次使用的南邮考试同步班级代码。 */
+    /** 上次使用的南邮考试同步班级代码；未保存过时展示通用示例。 */
     val njuptExamClassCode: StateFlow<String> = appSettingsRepository.getNjuptExamClassCode()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+        .map { savedCode -> savedCode.ifBlank { DEFAULT_NJUPT_CLASS_CODE } }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            DEFAULT_NJUPT_CLASS_CODE
+        )
 
     private val _njuptExamSyncState = MutableStateFlow(NjuptExamSyncUiState())
     val njuptExamSyncState: StateFlow<NjuptExamSyncUiState> = _njuptExamSyncState.asStateFlow()

@@ -61,7 +61,7 @@ class UpdateChecker(
     private val httpClient: HttpClient = defaultHttpClient
 ) {
     companion object {
-        private const val GITHUB_REPO = "XingHeYuZhuan/shiguangschedule"
+        private const val GITHUB_REPO = "zzemy/shiguangschedule"
         private const val GITEE_REPO = "XingHeYuZhuan-gh/shiguangschedule"
 
         val defaultHttpClient by lazy {

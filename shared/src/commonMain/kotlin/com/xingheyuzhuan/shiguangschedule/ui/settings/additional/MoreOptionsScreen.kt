@@ -63,7 +63,7 @@ import shiguangschedule.shared.generated.resources.theme_settings_title
 import shiguangschedule.shared.generated.resources.title_more_options
 import shiguangschedule.shared.generated.resources.update_24px
 
-private const val GITHUB_REPO_URL = "https://github.com/XingHeYuZhuan/shiguangschedule"
+private const val GITHUB_REPO_URL = "https://github.com/zzemy/shiguangschedule"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

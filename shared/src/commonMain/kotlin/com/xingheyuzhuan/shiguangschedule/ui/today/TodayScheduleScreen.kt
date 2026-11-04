@@ -300,8 +300,24 @@ fun TodayContent(
         }
     }
 
+    val initialFirstVisibleItemIndex = remember(
+        targetScrollIndex,
+        state.courses.size,
+        state.events.size,
+        state.upcomingExams.size
+    ) {
+        if (state.courses.isEmpty()) {
+            0
+        } else {
+            val examItemCount = if (state.upcomingExams.isNotEmpty()) 1 else 0
+            val eventItemCount = if (state.events.isNotEmpty()) 1 + state.events.size else 0
+            val courseHeaderCount = if (state.events.isNotEmpty()) 1 else 0
+            examItemCount + eventItemCount + courseHeaderCount + targetScrollIndex
+        }
+    }
+
     val scrollState = rememberLazyListState(
-        initialFirstVisibleItemIndex = targetScrollIndex
+        initialFirstVisibleItemIndex = initialFirstVisibleItemIndex
     )
 
     Column(
@@ -358,16 +374,11 @@ fun TodayContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (state.upcomingExams.isNotEmpty()) {
-            UpcomingExamsSection(
-                today = state.today,
-                exams = state.upcomingExams,
-                onDelete = onDeleteEvent
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        val hasContent = state.upcomingExams.isNotEmpty() ||
+            state.events.isNotEmpty() ||
+            state.courses.isNotEmpty()
 
-        if (state.courses.isEmpty() && state.events.isEmpty()) {
+        if (!hasContent) {
             EmptyStateView()
         } else {
             LazyColumn(
@@ -378,6 +389,16 @@ fun TodayContent(
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                if (state.upcomingExams.isNotEmpty()) {
+                    item {
+                        UpcomingExamsSection(
+                            today = state.today,
+                            exams = state.upcomingExams,
+                            onDelete = onDeleteEvent
+                        )
+                    }
+                }
+
                 if (state.events.isNotEmpty()) {
                     item {
                         Text(
@@ -1261,13 +1282,17 @@ fun NjuptExamSyncBottomSheet(
     onFallbackToIcs: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var classCode by remember { mutableStateOf(savedClassCode) }
+    var classCode by remember(savedClassCode) {
+        mutableStateOf(savedClassCode.ifBlank { TodayScheduleViewModel.DEFAULT_NJUPT_CLASS_CODE })
+    }
     var selectedIndices by remember(state.exams) {
         mutableStateOf(state.exams.indices.toSet())
     }
 
     LaunchedEffect(savedClassCode) {
-        if (classCode.isBlank()) classCode = savedClassCode
+        if (classCode.isBlank()) {
+            classCode = savedClassCode.ifBlank { TodayScheduleViewModel.DEFAULT_NJUPT_CLASS_CODE }
+        }
     }
 
     ModalBottomSheet(
@@ -1306,7 +1331,7 @@ fun NjuptExamSyncBottomSheet(
                     classCode = newValue.uppercase().filterNot { it.isWhitespace() }
                 },
                 label = { Text("班级代码") },
-                placeholder = { Text("例如：B241505") },
+                placeholder = { Text(TodayScheduleViewModel.DEFAULT_NJUPT_CLASS_CODE) },
                 trailingIcon = {
                     if (classCode.isNotEmpty()) {
                         IconButton(onClick = { classCode = "" }) {

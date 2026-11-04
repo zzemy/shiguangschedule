@@ -79,8 +79,11 @@ class WidgetDataSynchronizer(
                 // 监听当前课表关联的作息规则或绑定变化
                 val timeScheduleFlow = timeScheduleRepository.getTimeScheduleFlowByTableId(tableId)
                 val configFlow = appSettingsRepository.getCourseTableConfigFlow(tableId)
+                // 监听当前课表的考试与日程事件变更
+                val todayStr = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+                val eventsFlow = scheduleEventRepository.getUpcomingExamsFlow(tableId, todayStr)
 
-                combine(coursesFlow, timeScheduleFlow, configFlow) { courses, _, config ->
+                combine(coursesFlow, timeScheduleFlow, configFlow, eventsFlow) { courses, _, config, _ ->
                     Triple(appSettings, courses, config)
                 }
             } else {
@@ -222,7 +225,7 @@ class WidgetDataSynchronizer(
                 val widgetCourse = when (event.type) {
                     "EXAM" -> WidgetCourse(
                         id = "exam-${event.id}-$dateString",
-                        name = "[考试] ${event.title}",
+                        name = "📝 [考试] ${event.title}",
                         teacher = "",
                         position = listOfNotNull(event.location, event.detail).joinToString(" "),
                         startTime = event.startTime ?: "",
@@ -233,7 +236,7 @@ class WidgetDataSynchronizer(
                     )
                     "MAKEUP" -> WidgetCourse(
                         id = "makeup-${event.id}-$dateString",
-                        name = "[补课] ${event.title}",
+                        name = "🔄 [补课] ${event.title}",
                         teacher = "",
                         position = event.location ?: "",
                         startTime = event.startTime ?: "",
@@ -244,7 +247,7 @@ class WidgetDataSynchronizer(
                     )
                     "DAILY" -> if (!event.isCompleted) WidgetCourse(
                         id = "daily-${event.id}-$dateString",
-                        name = "[待办] ${event.title}",
+                        name = "📌 [待办] ${event.title}",
                         teacher = "",
                         position = event.detail ?: "",
                         startTime = event.startTime ?: "",
@@ -257,6 +260,35 @@ class WidgetDataSynchronizer(
                 }
                 if (widgetCourse != null) {
                     widgetCourses.add(widgetCourse)
+                }
+            }
+
+            // 如果当天是今天，且今天没有考试，检查未来是否有未开始的考试，将最近考试倒计时作为重要待办同步进小组件
+            if (i == 0) {
+                val todayExams = events.filter { it.type == "EXAM" }
+                if (todayExams.isEmpty()) {
+                    val upcomingExams = scheduleEventRepository.getUpcomingExamsFlow(tableId, dateString).first()
+                    val nextExam = upcomingExams.firstOrNull { it.date > dateString }
+                    if (nextExam != null) {
+                        val days = try {
+                            date.daysUntil(LocalDate.parse(nextExam.date))
+                        } catch (e: Exception) { 0 }
+                        if (days in 1..30) {
+                            widgetCourses.add(
+                                WidgetCourse(
+                                    id = "countdown-${nextExam.id}-$dateString",
+                                    name = "⏳ [倒计时] ${nextExam.title} (还有${days}天)",
+                                    teacher = "",
+                                    position = listOfNotNull(nextExam.date, nextExam.location).joinToString(" · "),
+                                    startTime = nextExam.startTime ?: "00:00",
+                                    endTime = nextExam.endTime ?: "00:00",
+                                    isSkipped = false,
+                                    date = dateString,
+                                    colorInt = 0
+                                )
+                            )
+                        }
+                    }
                 }
             }
 
