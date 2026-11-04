@@ -5,20 +5,24 @@ import androidx.lifecycle.viewModelScope
 import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableConfig
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWithWeeks
+import com.xingheyuzhuan.shiguangschedule.data.db.main.ScheduleEvent
 import com.xingheyuzhuan.shiguangschedule.data.db.main.TimeSlot
 import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
 import com.xingheyuzhuan.shiguangschedule.data.repository.AppSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.CourseTableRepository
+import com.xingheyuzhuan.shiguangschedule.data.repository.ScheduleEventRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.TimeScheduleRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -26,13 +30,15 @@ import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.toLocalDateTime
 import org.koin.core.annotation.KoinViewModel
 import kotlin.time.Clock
+import kotlin.uuid.Uuid
 
 @KoinViewModel
 class TodayScheduleViewModel(
     private val appSettingsRepository: AppSettingsRepository,
     private val courseTableRepository: CourseTableRepository,
     private val styleSettingsRepository: StyleSettingsRepository,
-    private val timeScheduleRepository: TimeScheduleRepository
+    private val timeScheduleRepository: TimeScheduleRepository,
+    private val scheduleEventRepository: ScheduleEventRepository
 ) : ViewModel() {
 
     companion object {
@@ -86,18 +92,67 @@ class TodayScheduleViewModel(
                     isSkippedDay = isSkippedDay
                 )
             }.flatMapLatest { snapshot ->
-                // 只有 Normal 状态且不是跳过日期时才查询数据库
-                if (snapshot.status == TodayStatus.Normal && snapshot.weekIndex != null && !snapshot.isSkippedDay) {
-                    courseTableRepository.getCoursesForDay(tableId, snapshot.weekIndex, dayOfWeek).map { courses ->
-                        createSuccessState(courses, snapshot, today)
-                    }
+                val coursesFlow = if (snapshot.status == TodayStatus.Normal && snapshot.weekIndex != null && !snapshot.isSkippedDay) {
+                    courseTableRepository.getCoursesForDay(tableId, snapshot.weekIndex, dayOfWeek)
                 } else {
-                    // 如果是跳过日期或非正常学期状态，直接返回空课程列表
-                    flowOf(createSuccessState(emptyList(), snapshot, today))
+                    flowOf(emptyList())
+                }
+                val eventsFlow = scheduleEventRepository.getEventsForDateFlow(tableId, today.toString())
+                val upcomingExamsFlow = scheduleEventRepository.getUpcomingExamsFlow(tableId, today.toString())
+
+                combine(coursesFlow, eventsFlow, upcomingExamsFlow) { courses, events, exams ->
+                    createSuccessState(courses, snapshot, today, events, exams)
                 }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TodayUiState.Loading)
+
+    /**
+     * 添加日程事件（每日日程、考试、补课）
+     */
+    fun addEvent(
+        title: String,
+        type: String,
+        date: String,
+        startTime: String? = null,
+        endTime: String? = null,
+        location: String? = null,
+        detail: String? = null
+    ) {
+        viewModelScope.launch {
+            val settings = appSettingsRepository.getAppSettings().first()
+            val event = ScheduleEvent(
+                id = Uuid.random().toString(),
+                courseTableId = settings.currentCourseTableId,
+                title = title.trim(),
+                type = type,
+                date = date.trim(),
+                startTime = startTime?.trim()?.takeIf { it.isNotBlank() },
+                endTime = endTime?.trim()?.takeIf { it.isNotBlank() },
+                location = location?.trim()?.takeIf { it.isNotBlank() },
+                detail = detail?.trim()?.takeIf { it.isNotBlank() }
+            )
+            scheduleEventRepository.insertEvent(event)
+        }
+    }
+
+    /**
+     * 切换每日待办的完成状态
+     */
+    fun toggleEventCompleted(event: ScheduleEvent) {
+        viewModelScope.launch {
+            scheduleEventRepository.updateEvent(event.copy(isCompleted = !event.isCompleted))
+        }
+    }
+
+    /**
+     * 删除指定事件
+     */
+    fun deleteEvent(event: ScheduleEvent) {
+        viewModelScope.launch {
+            scheduleEventRepository.deleteEvent(event)
+        }
+    }
 
     /**
      * 内部辅助快照类
@@ -115,7 +170,9 @@ class TodayScheduleViewModel(
     private fun createSuccessState(
         courses: List<CourseWithWeeks>,
         snapshot: DataSnapshot,
-        today: LocalDate
+        today: LocalDate,
+        events: List<ScheduleEvent> = emptyList(),
+        upcomingExams: List<ScheduleEvent> = emptyList()
     ): TodayUiState.Success {
         val slotMap = snapshot.timeSlots.associateBy { it.number }
 
@@ -139,7 +196,9 @@ class TodayScheduleViewModel(
             status = snapshot.status,
             startDate = snapshot.startDate,
             totalWeeks = snapshot.totalWeeks,
-            firstDayOfWeek = snapshot.firstDayOfWeek
+            firstDayOfWeek = snapshot.firstDayOfWeek,
+            events = events,
+            upcomingExams = upcomingExams
         )
     }
 }
@@ -161,6 +220,8 @@ sealed class TodayUiState {
         val status: TodayStatus,
         val startDate: LocalDate?,
         val totalWeeks: Int,
-        val firstDayOfWeek: Int
+        val firstDayOfWeek: Int,
+        val events: List<ScheduleEvent> = emptyList(),
+        val upcomingExams: List<ScheduleEvent> = emptyList()
     ) : TodayUiState()
 }

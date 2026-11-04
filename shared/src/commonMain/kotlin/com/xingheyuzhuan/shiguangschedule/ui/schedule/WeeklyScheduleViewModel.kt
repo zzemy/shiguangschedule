@@ -2,11 +2,15 @@ package com.xingheyuzhuan.shiguangschedule.ui.schedule
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
+import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeek
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWithWeeks
+import com.xingheyuzhuan.shiguangschedule.data.db.main.ScheduleEvent
 import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
 import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.ScheduleModeProto
 import com.xingheyuzhuan.shiguangschedule.data.repository.AppSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.CourseTableRepository
+import com.xingheyuzhuan.shiguangschedule.data.repository.ScheduleEventRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.TimeScheduleRepository
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.components.ScheduleGridStyleComposed.Companion.toComposedStyle
@@ -47,7 +51,8 @@ class WeeklyScheduleViewModel(
     private val appSettingsRepository: AppSettingsRepository,
     private val courseTableRepository: CourseTableRepository,
     private val timeScheduleRepository: TimeScheduleRepository,
-    private val styleSettingsRepository: StyleSettingsRepository
+    private val styleSettingsRepository: StyleSettingsRepository,
+    private val scheduleEventRepository: ScheduleEventRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WeeklyScheduleUiState())
@@ -138,9 +143,16 @@ class WeeklyScheduleViewModel(
                 }
 
                 val daySlotsFlow = timeScheduleRepository.observeEffectiveTimeSlots(tableId, day)
+                val eventsFlow = scheduleEventRepository.getEventsInRangeFlow(
+                    courseTableId = tableId,
+                    startDate = day.toString(),
+                    endDateExclusive = day.plus(7, DateTimeUnit.DAY).toString()
+                )
 
-                combine(coursesFlow, daySlotsFlow) { courses, daySlots ->
-                    day.toString() to mergeCourses(courses, daySlots, pageWeekNum ?: -1, mode)
+                combine(coursesFlow, daySlotsFlow, eventsFlow) { courses, daySlots, events ->
+                    val weekNumber = pageWeekNum ?: -1
+                    val eventCourses = events.mapNotNull { it.toPseudoCourse(weekNumber) }
+                    day.toString() to mergeCourses(courses + eventCourses, daySlots, weekNumber, mode)
                 }
             }) { results -> results.toMap() }
         } else {
@@ -230,6 +242,33 @@ class WeeklyScheduleViewModel(
             appSettingsRepository.insertOrUpdateAppSettings(newSettings)
         }
     }
+
+    /**
+     * 将补课/考试事件映射为仅用于周课表渲染的伪课程。
+     * 日期或时间不合法时返回 null，交由调用方跳过。
+     */
+    private fun ScheduleEvent.toPseudoCourse(weekNumber: Int): CourseWithWeeks? = runCatching {
+        val name = when (type) {
+            "EXAM" -> "[考试] $title"
+            "MAKEUP" -> "[补课] $title"
+            else -> title
+        }
+        val course = Course(
+            id = id,
+            courseTableId = courseTableId,
+            name = name,
+            teacher = "",
+            position = location.orEmpty(),
+            day = LocalDate.parse(date).dayOfWeek.isoDayNumber,
+            startSection = null,
+            endSection = null,
+            isCustomTime = true,
+            customStartTime = startTime,
+            customEndTime = endTime,
+            colorInt = colorInt ?: 0
+        )
+        CourseWithWeeks(course, listOf(CourseWeek(course.id, weekNumber)))
+    }.getOrNull()
 
     private fun fixInvalidCourseColors(courses: List<CourseWithWeeks>, style: ScheduleGridStyle) {
         viewModelScope.launch {

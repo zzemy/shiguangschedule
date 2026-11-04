@@ -19,13 +19,15 @@ import com.xingheyuzhuan.shiguangschedule.data.di.AppStorage
         TimeTable::class,
         CourseTimeBinding::class,
         TimeTableCombo::class,
-        TimeTableComboRule::class
+        TimeTableComboRule::class,
+        ScheduleEvent::class
     ],
-    version = 7,
+    version = 8,
     autoMigrations = [
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5, spec = MainAppDatabase.RemoveAppSettingsSpec::class),
-        AutoMigration(from = 6, to = 7)
+        AutoMigration(from = 6, to = 7),
+        AutoMigration(from = 7, to = 8)
     ],
     exportSchema = true
 )
@@ -43,6 +45,7 @@ abstract class MainAppDatabase : RoomDatabase() {
     abstract fun timeTableDao(): TimeTableDao
     abstract fun courseTimeBindingDao(): CourseTimeBindingDao
     abstract fun timeTableComboDao(): TimeTableComboDao
+    abstract fun scheduleEventDao(): ScheduleEventDao
 
     companion object {
         fun getDatabase(appStorage: AppStorage): MainAppDatabase {

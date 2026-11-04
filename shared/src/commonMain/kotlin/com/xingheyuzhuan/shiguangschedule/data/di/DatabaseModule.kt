@@ -44,6 +44,9 @@ class DatabaseModule {
     @Factory
     fun provideTimeTableComboDao(db: MainAppDatabase): TimeTableComboDao = db.timeTableComboDao()
 
+    @Factory
+    fun provideScheduleEventDao(db: MainAppDatabase): ScheduleEventDao = db.scheduleEventDao()
+
     // Widget 数据库 DAO
     @Factory
     fun provideWidgetCourseDao(db: WidgetDatabase): WidgetCourseDao = db.widgetCourseDao()

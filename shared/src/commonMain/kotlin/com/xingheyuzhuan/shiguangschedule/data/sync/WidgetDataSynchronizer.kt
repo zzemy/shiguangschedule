@@ -7,6 +7,7 @@ import com.xingheyuzhuan.shiguangschedule.data.db.widget.WidgetCourse
 import com.xingheyuzhuan.shiguangschedule.data.model.AppSettingsModel
 import com.xingheyuzhuan.shiguangschedule.data.repository.AppSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.CourseTableRepository
+import com.xingheyuzhuan.shiguangschedule.data.repository.ScheduleEventRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.TimeScheduleRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.WidgetRepository
 import kotlinx.coroutines.CoroutineScope
@@ -51,7 +52,8 @@ class WidgetDataSynchronizer(
     private val appSettingsRepository: AppSettingsRepository,
     private val courseTableRepository: CourseTableRepository,
     private val timeScheduleRepository: TimeScheduleRepository,
-    private val widgetRepository: WidgetRepository
+    private val widgetRepository: WidgetRepository,
+    private val scheduleEventRepository: ScheduleEventRepository
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val widgetSyncDays = 7 // 每次同步未来 7 天的数据
@@ -213,6 +215,50 @@ class WidgetDataSynchronizer(
         for (i in 0 until widgetSyncDays) {
             val date = startSyncDate.plus(i, DateTimeUnit.DAY)
             val dateString = date.toString()
+
+            // 同步当天日程事件（考试、补课、未完成的每日待办）
+            val events = scheduleEventRepository.getEventsForDateFlow(tableId, dateString).first()
+            for (event in events) {
+                val widgetCourse = when (event.type) {
+                    "EXAM" -> WidgetCourse(
+                        id = "exam-${event.id}-$dateString",
+                        name = "[考试] ${event.title}",
+                        teacher = "",
+                        position = listOfNotNull(event.location, event.detail).joinToString(" "),
+                        startTime = event.startTime ?: "",
+                        endTime = event.endTime ?: "",
+                        isSkipped = false,
+                        date = dateString,
+                        colorInt = event.colorInt ?: 0
+                    )
+                    "MAKEUP" -> WidgetCourse(
+                        id = "makeup-${event.id}-$dateString",
+                        name = "[补课] ${event.title}",
+                        teacher = "",
+                        position = event.location ?: "",
+                        startTime = event.startTime ?: "",
+                        endTime = event.endTime ?: "",
+                        isSkipped = false,
+                        date = dateString,
+                        colorInt = event.colorInt ?: 0
+                    )
+                    "DAILY" -> if (!event.isCompleted) WidgetCourse(
+                        id = "daily-${event.id}-$dateString",
+                        name = "[待办] ${event.title}",
+                        teacher = "",
+                        position = event.detail ?: "",
+                        startTime = event.startTime ?: "",
+                        endTime = event.endTime ?: "",
+                        isSkipped = false,
+                        date = dateString,
+                        colorInt = event.colorInt ?: 0
+                    ) else null
+                    else -> null
+                }
+                if (widgetCourse != null) {
+                    widgetCourses.add(widgetCourse)
+                }
+            }
 
             val alignedDate = getStartDayOfWeek(date, firstDayOfWeekInt)
 
