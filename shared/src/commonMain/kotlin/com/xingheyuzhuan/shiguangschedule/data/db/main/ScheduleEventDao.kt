@@ -58,6 +58,12 @@ interface ScheduleEventDao {
     suspend fun insertEvent(event: ScheduleEvent)
 
     /**
+     * 批量插入日程事件。主键冲突时替换旧数据。
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEvents(events: List<ScheduleEvent>)
+
+    /**
      * 更新一个现有日程事件。
      */
     @Update

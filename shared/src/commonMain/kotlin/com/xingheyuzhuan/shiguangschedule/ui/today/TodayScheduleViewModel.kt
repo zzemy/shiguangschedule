@@ -2,6 +2,9 @@ package com.xingheyuzhuan.shiguangschedule.ui.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xingheyuzhuan.shiguangschedule.data.api.exam.ExamImportItem
+import com.xingheyuzhuan.shiguangschedule.data.api.exam.ExamSyncException
+import com.xingheyuzhuan.shiguangschedule.data.api.exam.NjuptExamSyncClient
 import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableConfig
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWithWeeks
@@ -13,9 +16,13 @@ import com.xingheyuzhuan.shiguangschedule.data.repository.CourseTableRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.ScheduleEventRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.TimeScheduleRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -38,7 +45,8 @@ class TodayScheduleViewModel(
     private val courseTableRepository: CourseTableRepository,
     private val styleSettingsRepository: StyleSettingsRepository,
     private val timeScheduleRepository: TimeScheduleRepository,
-    private val scheduleEventRepository: ScheduleEventRepository
+    private val scheduleEventRepository: ScheduleEventRepository,
+    private val njuptExamSyncClient: NjuptExamSyncClient
 ) : ViewModel() {
 
     companion object {
@@ -48,6 +56,15 @@ class TodayScheduleViewModel(
 
     val gridStyle: StateFlow<ScheduleGridStyle> = styleSettingsRepository.styleFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScheduleGridStyle())
+
+    /** 上次使用的南邮考试同步班级代码。 */
+    val njuptExamClassCode: StateFlow<String> = appSettingsRepository.getNjuptExamClassCode()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    private val _njuptExamSyncState = MutableStateFlow(NjuptExamSyncUiState())
+    val njuptExamSyncState: StateFlow<NjuptExamSyncUiState> = _njuptExamSyncState.asStateFlow()
+
+    private var njuptExamSyncJob: Job? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<TodayUiState> = appSettingsRepository.getAppSettings()
@@ -137,6 +154,75 @@ class TodayScheduleViewModel(
     }
 
     /**
+     * 批量添加日程事件，自动补全当前课表 ID。
+     */
+    fun batchAddEvents(events: List<ScheduleEvent>) {
+        if (events.isEmpty()) return
+        viewModelScope.launch {
+            val settings = appSettingsRepository.getAppSettings().first()
+            val preparedEvents = events.map { event ->
+                event.copy(
+                    id = event.id.ifBlank { Uuid.random().toString() },
+                    courseTableId = settings.currentCourseTableId
+                )
+            }
+            scheduleEventRepository.insertEvents(preparedEvents)
+        }
+    }
+
+    /**
+     * 查询并同步南邮 StuDev 班级在线考试安排。
+     */
+    fun syncNjuptExams(classCode: String) {
+        val normalizedCode = classCode.filterNot { it.isWhitespace() }.uppercase()
+        if (normalizedCode.isEmpty()) {
+            _njuptExamSyncState.value = NjuptExamSyncUiState(
+                hasQueried = true,
+                errorMessage = "请输入班级代码"
+            )
+            return
+        }
+
+        njuptExamSyncJob?.cancel()
+        njuptExamSyncJob = viewModelScope.launch {
+            appSettingsRepository.saveNjuptExamClassCode(normalizedCode)
+            _njuptExamSyncState.value = NjuptExamSyncUiState(isQuerying = true)
+
+            try {
+                val exams = njuptExamSyncClient.fetchExams(normalizedCode)
+                _njuptExamSyncState.value = if (exams.isEmpty()) {
+                    NjuptExamSyncUiState(
+                        hasQueried = true,
+                        errorMessage = "未查询到该班级的考试安排"
+                    )
+                } else {
+                    NjuptExamSyncUiState(
+                        hasQueried = true,
+                        exams = exams
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _njuptExamSyncState.value = NjuptExamSyncUiState(
+                    hasQueried = true,
+                    errorMessage = (e as? ExamSyncException)?.message
+                        ?: "网络连接失败，请检查网络后重试"
+                )
+            }
+        }
+    }
+
+    /**
+     * 重置南邮考试同步状态并取消进行中的查询。
+     */
+    fun resetNjuptExamSyncState() {
+        njuptExamSyncJob?.cancel()
+        njuptExamSyncJob = null
+        _njuptExamSyncState.value = NjuptExamSyncUiState()
+    }
+
+    /**
      * 切换每日待办的完成状态
      */
     fun toggleEventCompleted(event: ScheduleEvent) {
@@ -202,6 +288,16 @@ class TodayScheduleViewModel(
         )
     }
 }
+
+/**
+ * 南邮考试在线同步的界面状态。
+ */
+data class NjuptExamSyncUiState(
+    val isQuerying: Boolean = false,
+    val hasQueried: Boolean = false,
+    val exams: List<ExamImportItem> = emptyList(),
+    val errorMessage: String? = null
+)
 
 data class CourseDisplayModel(
     val course: Course,

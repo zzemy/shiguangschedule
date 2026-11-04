@@ -46,6 +46,13 @@ class ScheduleEventRepository(
     }
 
     /**
+     * 批量插入日程事件。
+     */
+    suspend fun insertEvents(events: List<ScheduleEvent>) {
+        scheduleEventDao.insertEvents(events)
+    }
+
+    /**
      * 更新一个日程事件。
      */
     suspend fun updateEvent(event: ScheduleEvent) {

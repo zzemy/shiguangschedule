@@ -1,4 +1,5 @@
 import com.android.build.api.variant.FilterConfiguration
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -6,6 +7,14 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.koin.compiler)
 }
+
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.isFile) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseSigning = keystorePropertiesFile.isFile
 
 kotlin {
     jvmToolchain(21)
@@ -25,10 +34,35 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(
+                    keystoreProperties.getProperty("storeFile")
+                        ?: throw GradleException("key.properties 缺少必填项：storeFile")
+                ).also {
+                    if (!it.isFile) {
+                        throw GradleException("找不到签名文件：${it.absolutePath}")
+                    }
+                }
+                storePassword = keystoreProperties.getProperty("storePassword")
+                    ?: throw GradleException("key.properties 缺少必填项：storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                    ?: throw GradleException("key.properties 缺少必填项：keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                    ?: throw GradleException("key.properties 缺少必填项：keyPassword")
+                storeType = keystoreProperties.getProperty("storeType") ?: "PKCS12"
+            }
+        }
+    }
+
     buildTypes {
         release {
             optimization {
                 enable = true
+            }
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }

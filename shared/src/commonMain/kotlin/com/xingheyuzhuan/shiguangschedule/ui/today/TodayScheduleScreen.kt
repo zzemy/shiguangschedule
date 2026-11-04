@@ -12,34 +12,55 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDialog
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,28 +69,46 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xingheyuzhuan.shiguangschedule.Destination
+import com.xingheyuzhuan.shiguangschedule.data.api.exam.ExamImportItem
+import com.xingheyuzhuan.shiguangschedule.data.api.exam.IcsExamParser
 import com.xingheyuzhuan.shiguangschedule.data.db.main.ScheduleEvent
 import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
+import com.xingheyuzhuan.shiguangschedule.tool.FileManagerCallbacks
+import com.xingheyuzhuan.shiguangschedule.tool.rememberFileManager
+import com.xingheyuzhuan.shiguangschedule.ui.components.ToastManager
 import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
 import com.xingheyuzhuan.shiguangschedule.ui.theme.rememberCourseTextColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
+import kotlin.uuid.Uuid
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import shiguangschedule.shared.generated.resources.Res
+import shiguangschedule.shared.generated.resources.action_cancel
+import shiguangschedule.shared.generated.resources.action_confirm
 import shiguangschedule.shared.generated.resources.add_24px
+import shiguangschedule.shared.generated.resources.calendar_today_24px
+import shiguangschedule.shared.generated.resources.close_24px
 import shiguangschedule.shared.generated.resources.course_position_prefix
 import shiguangschedule.shared.generated.resources.course_teacher_prefix
 import shiguangschedule.shared.generated.resources.date_format_year_month_day
@@ -82,8 +121,10 @@ import shiguangschedule.shared.generated.resources.title_current_week
 import shiguangschedule.shared.generated.resources.title_semester_not_set
 import shiguangschedule.shared.generated.resources.title_today_schedule
 import shiguangschedule.shared.generated.resources.title_vacation_until_start
+import shiguangschedule.shared.generated.resources.update_24px
 import shiguangschedule.shared.generated.resources.week_days_full_names
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 private const val DEFAULT_TIME_ZERO = "00:00"
 private const val EMPTY_TIME_PLACEHOLDER = "--:--"
@@ -99,8 +140,39 @@ fun TodayScheduleScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val gridStyle by viewModel.gridStyle.collectAsState()
+    val examSyncState by viewModel.njuptExamSyncState.collectAsState()
+    val savedClassCode by viewModel.njuptExamClassCode.collectAsState()
     val isDark = LocalIsDarkTheme.current
-    var showAddDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    var showAddSheet by remember { mutableStateOf(false) }
+    var showNjuptExamSyncSheet by remember { mutableStateOf(false) }
+    var icsPreviewExams by remember { mutableStateOf<List<ExamImportItem>?>(null) }
+
+    val fileManager = rememberFileManager(
+        FileManagerCallbacks(
+            onFileImported = { bytes, _ ->
+                if (bytes != null) {
+                    scope.launch {
+                        val parsedExams = withContext(Dispatchers.Default) {
+                            IcsExamParser.parse(bytes.decodeToString())
+                        }
+                        if (parsedExams.isEmpty()) {
+                            ToastManager.show("未在该 .ics 文件中找到日程事件")
+                        } else {
+                            icsPreviewExams = parsedExams
+                        }
+                    }
+                }
+            }
+        )
+    )
+
+    val todayFromState = (uiState as? TodayUiState.Success)?.today
+    val fallbackToday = remember {
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    }
+    val defaultDate = (todayFromState ?: fallbackToday).toString()
 
     Scaffold(
         topBar = {
@@ -112,20 +184,17 @@ fun TodayScheduleScreen(
                         fontWeight = FontWeight.ExtraBold
                     )
                 },
+                actions = {
+                    IconButton(onClick = { showAddSheet = true }) {
+                        Icon(
+                            painter = painterResource(Res.drawable.add_24px),
+                            contentDescription = "添加日程",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors()
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            ) {
-                Icon(
-                    painter = painterResource(Res.drawable.add_24px),
-                    contentDescription = "添加日程"
-                )
-            }
         }
     ) { innerPadding ->
         Box(
@@ -143,20 +212,64 @@ fun TodayScheduleScreen(
                         onToggleEvent = { viewModel.toggleEventCompleted(it) },
                         onDeleteEvent = { viewModel.deleteEvent(it) }
                     )
-
-                    if (showAddDialog) {
-                        AddScheduleEventDialog(
-                            defaultDate = state.today.toString(),
-                            onDismiss = { showAddDialog = false },
-                            onConfirm = { title, type, date, startTime, endTime, location, detail ->
-                                viewModel.addEvent(title, type, date, startTime, endTime, location, detail)
-                                showAddDialog = false
-                            }
-                        )
-                    }
                 }
             }
         }
+    }
+
+    if (showAddSheet) {
+        AddScheduleEventBottomSheet(
+            defaultDate = defaultDate,
+            onDismiss = { showAddSheet = false },
+            onOpenNjuptSync = {
+                showAddSheet = false
+                viewModel.resetNjuptExamSyncState()
+                showNjuptExamSyncSheet = true
+            },
+            onImportIcs = {
+                showAddSheet = false
+                fileManager.importFile(listOf("ics"))
+            },
+            onConfirm = { title, type, date, startTime, endTime, location, detail ->
+                viewModel.addEvent(title, type, date, startTime, endTime, location, detail)
+                showAddSheet = false
+            }
+        )
+    }
+
+    if (showNjuptExamSyncSheet) {
+        NjuptExamSyncBottomSheet(
+            state = examSyncState,
+            savedClassCode = savedClassCode,
+            onQuery = viewModel::syncNjuptExams,
+            onImport = { exams ->
+                viewModel.batchAddEvents(exams.map { it.toScheduleEvent() })
+                ToastManager.show("成功导入 ${exams.size} 门考试")
+                viewModel.resetNjuptExamSyncState()
+                showNjuptExamSyncSheet = false
+            },
+            onFallbackToIcs = {
+                viewModel.resetNjuptExamSyncState()
+                showNjuptExamSyncSheet = false
+                fileManager.importFile(listOf("ics"))
+            },
+            onDismiss = {
+                viewModel.resetNjuptExamSyncState()
+                showNjuptExamSyncSheet = false
+            }
+        )
+    }
+
+    icsPreviewExams?.let { exams ->
+        IcsExamPreviewBottomSheet(
+            exams = exams,
+            onDismiss = { icsPreviewExams = null },
+            onImport = { selectedExams ->
+                viewModel.batchAddEvents(selectedExams.map { it.toScheduleEvent() })
+                ToastManager.show("成功导入 ${selectedExams.size} 项日程")
+                icsPreviewExams = null
+            }
+        )
     }
 }
 
@@ -519,7 +632,7 @@ fun UpcomingExamsSection(
                         val timeStr = listOfNotNull(exam.startTime, exam.endTime?.let { "- $it" }).joinToString(" ")
                         val locStr = listOfNotNull(
                             exam.location?.takeIf { it.isNotBlank() },
-                            exam.detail?.takeIf { it.isNotBlank() }?.let { "座位: $it" }
+                            exam.detail?.takeIf { it.isNotBlank() }
                         ).joinToString(" | ")
 
                         val subInfo = listOfNotNull(exam.date, timeStr.takeIf { it.isNotBlank() }, locStr.takeIf { it.isNotBlank() }).joinToString(" · ")
@@ -645,130 +758,907 @@ fun ScheduleEventItem(
     }
 }
 
+private enum class EventTimeField { START, END }
+
+private fun formatTimeOfDay(hour: Int, minute: Int): String =
+    "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+
+private fun parseTimeOfDay(value: String): Pair<Int, Int>? {
+    val parts = value.split(":")
+    if (parts.size != 2) return null
+    val hour = parts[0].toIntOrNull() ?: return null
+    val minute = parts[1].toIntOrNull() ?: return null
+    if (hour !in 0..23 || minute !in 0..59) return null
+    return hour to minute
+}
+
+/**
+ * 将考试导入数据转换为日程事件；课表 ID 与主键由 ViewModel 批量写入时补全。
+ */
+fun ExamImportItem.toScheduleEvent(courseTableId: String = ""): ScheduleEvent = ScheduleEvent(
+    id = "",
+    courseTableId = courseTableId,
+    title = courseName,
+    type = "EXAM",
+    date = date,
+    startTime = startTime,
+    endTime = endTime,
+    location = listOfNotNull(campus, location)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+        .ifBlank { null },
+    detail = listOfNotNull(teacher?.let { "教师: $it" }, note)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+        .ifBlank { null }
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddScheduleEventDialog(
+fun AddScheduleEventBottomSheet(
     defaultDate: String,
     onDismiss: () -> Unit,
+    onOpenNjuptSync: () -> Unit,
+    onImportIcs: () -> Unit,
     onConfirm: (title: String, type: String, date: String, startTime: String?, endTime: String?, location: String?, detail: String?) -> Unit
 ) {
     var selectedType by remember { mutableStateOf("DAILY") }
     var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(defaultDate) }
+    val initialDate = remember(defaultDate) {
+        runCatching { LocalDate.parse(defaultDate) }.getOrElse {
+            Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        }
+    }
+    var selectedDate by remember(initialDate) { mutableStateOf(initialDate) }
+    var isAllDay by remember { mutableStateOf(false) }
     var startTime by remember { mutableStateOf("") }
     var endTime by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var detail by remember { mutableStateOf("") }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var timePickerTarget by remember { mutableStateOf<EventTimeField?>(null) }
 
-    AlertDialog(
+    val weekDays = stringArrayResource(Res.array.week_days_full_names)
+    val formattedDate = stringResource(
+        Res.string.date_format_year_month_day,
+        selectedDate.year.toString(),
+        selectedDate.month.number.toString(),
+        selectedDate.day.toString()
+    )
+    val weekDayName = weekDays.getOrNull(selectedDate.dayOfWeek.isoDayNumber - 1).orEmpty()
+    val dateDisplay = "$formattedDate $weekDayName"
+
+    val timeRangeInvalid = !isAllDay &&
+        startTime.isNotBlank() &&
+        endTime.isNotBlank() &&
+        endTime <= startTime
+
+    val typeOptions = remember {
+        listOf(
+            "DAILY" to "每日日程",
+            "EXAM" to "考试日程",
+            "MAKEUP" to "自定义补课"
+        )
+    }
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(top = 4.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             Text(
                 text = "添加事项",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
-        },
-        text = {
-            Column(
+
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
+                QuickImportCard(
+                    emoji = "⚡",
+                    title = "同步南邮考试",
+                    subtitle = "StuDev 班级在线",
+                    onClick = onOpenNjuptSync,
+                    modifier = Modifier.weight(1f)
+                )
+                QuickImportCard(
+                    emoji = "📄",
+                    title = "导入 .ics 文件",
+                    subtitle = "离线日历兜底",
+                    onClick = onImportIcs,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                typeOptions.forEach { (type, label) ->
                     FilterChip(
-                        selected = selectedType == "DAILY",
-                        onClick = { selectedType = "DAILY" },
-                        label = { Text("每日日程") }
-                    )
-                    FilterChip(
-                        selected = selectedType == "EXAM",
-                        onClick = { selectedType = "EXAM" },
-                        label = { Text("考试日程") }
-                    )
-                    FilterChip(
-                        selected = selectedType == "MAKEUP",
-                        onClick = { selectedType = "MAKEUP" },
-                        label = { Text("自定义补课") }
+                        selected = selectedType == type,
+                        onClick = { selectedType = type },
+                        label = {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                softWrap = false,
+                                textAlign = TextAlign.Center
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
                     )
                 }
+            }
 
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = {
+                    Text(
+                        when (selectedType) {
+                            "EXAM" -> "考试科目（如：高等数学期末）"
+                            "MAKEUP" -> "补课名称（如：物理实验）"
+                            else -> "日程标题（如：交作业/班会）"
+                        }
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedCard(
+                onClick = { showDatePicker = true },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(Res.drawable.calendar_today_24px),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            when (selectedType) {
-                                "EXAM" -> "考试科目（如：高等数学期末）"
-                                "MAKEUP" -> "补课名称（如：物理实验）"
-                                else -> "日程标题（如：交作业/班会）"
-                            }
+                            text = "日期",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
                         )
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = dateDisplay,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1
+                        )
+                    }
+                    Text(
+                        text = "选择",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
 
-                OutlinedTextField(
-                    value = date,
-                    onValueChange = { date = it },
-                    label = { Text("日期 (YYYY-MM-DD)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "全天事项",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "开启后不设置具体时间",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Switch(
+                    checked = isAllDay,
+                    onCheckedChange = { isAllDay = it }
                 )
+            }
 
+            if (!isAllDay) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
+                    TimeFieldCard(
+                        label = "开始时间",
                         value = startTime,
-                        onValueChange = { startTime = it },
-                        label = { Text("开始 (HH:MM)") },
-                        singleLine = true,
+                        onClick = { timePickerTarget = EventTimeField.START },
+                        onClear = { startTime = "" },
                         modifier = Modifier.weight(1f)
                     )
-                    OutlinedTextField(
+                    TimeFieldCard(
+                        label = "结束时间",
                         value = endTime,
-                        onValueChange = { endTime = it },
-                        label = { Text("结束 (HH:MM)") },
-                        singleLine = true,
+                        onClick = { timePickerTarget = EventTimeField.END },
+                        onClear = { endTime = "" },
                         modifier = Modifier.weight(1f)
                     )
                 }
 
-                OutlinedTextField(
-                    value = location,
-                    onValueChange = { location = it },
-                    label = { Text(if (selectedType == "EXAM") "考场（如：主楼A101）" else "地点/教室") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = detail,
-                    onValueChange = { detail = it },
-                    label = { Text(if (selectedType == "EXAM") "座位号 / 注意事项" else "备注 / 详情") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (timeRangeInvalid) {
+                    Text(
+                        text = "结束时间需晚于开始时间",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
-        },
-        confirmButton = {
+
+            OutlinedTextField(
+                value = location,
+                onValueChange = { location = it },
+                label = { Text(if (selectedType == "EXAM") "考场（如：主楼A101）" else "地点/教室") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = detail,
+                onValueChange = { detail = it },
+                label = { Text(if (selectedType == "EXAM") "座位号 / 注意事项" else "备注 / 详情") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Button(
                 onClick = {
-                    onConfirm(title, selectedType, date, startTime, endTime, location, detail)
+                    onConfirm(
+                        title.trim(),
+                        selectedType,
+                        selectedDate.toString(),
+                        if (isAllDay) null else startTime.takeIf { it.isNotBlank() },
+                        if (isAllDay) null else endTime.takeIf { it.isNotBlank() },
+                        location.takeIf { it.isNotBlank() },
+                        detail.takeIf { it.isNotBlank() }
+                    )
                 },
-                enabled = title.isNotBlank() && date.isNotBlank()
+                enabled = title.isNotBlank() && !timeRangeInvalid,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
             ) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(
+                    text = "保存事项",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
-    )
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = remember(selectedDate) {
+                selectedDate.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            selectedDate = Instant.fromEpochMilliseconds(millis)
+                                .toLocalDateTime(TimeZone.UTC)
+                                .date
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text(stringResource(Res.string.action_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(Res.string.action_cancel))
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                showModeToggle = false
+            )
+        }
+    }
+
+    val pickerTarget = timePickerTarget
+    if (pickerTarget != null) {
+        val currentValue = when (pickerTarget) {
+            EventTimeField.START -> startTime
+            EventTimeField.END -> endTime
+        }
+        val (initialHour, initialMinute) = remember(pickerTarget, currentValue) {
+            parseTimeOfDay(currentValue) ?: when (pickerTarget) {
+                EventTimeField.START -> 8 to 0
+                EventTimeField.END -> 9 to 0
+            }
+        }
+        val timePickerState = rememberTimePickerState(
+            initialHour = initialHour,
+            initialMinute = initialMinute,
+            is24Hour = true
+        )
+        TimePickerDialog(
+            onDismissRequest = { timePickerTarget = null },
+            title = {
+                Text(
+                    text = if (pickerTarget == EventTimeField.START) "选择开始时间" else "选择结束时间",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val picked = formatTimeOfDay(timePickerState.hour, timePickerState.minute)
+                        when (pickerTarget) {
+                            EventTimeField.START -> startTime = picked
+                            EventTimeField.END -> endTime = picked
+                        }
+                        timePickerTarget = null
+                    }
+                ) {
+                    Text(stringResource(Res.string.action_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { timePickerTarget = null }) {
+                    Text(stringResource(Res.string.action_cancel))
+                }
+            }
+        ) {
+            TimePicker(state = timePickerState)
+        }
+    }
 }
+
+@Composable
+private fun TimeFieldCard(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = value.ifBlank { "未设置" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (value.isBlank()) FontWeight.Normal else FontWeight.Medium,
+                    color = if (value.isBlank()) {
+                        MaterialTheme.colorScheme.outline
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    maxLines = 1
+                )
+            }
+
+            if (value.isNotBlank()) {
+                IconButton(
+                    onClick = onClear,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(Res.drawable.close_24px),
+                        contentDescription = "清除时间",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
+            } else {
+                Icon(
+                    painter = painterResource(Res.drawable.update_24px),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(16.dp),
+                    tint = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickImportCard(
+    emoji: String,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(text = emoji, fontSize = 20.sp)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NjuptExamSyncBottomSheet(
+    state: NjuptExamSyncUiState,
+    savedClassCode: String,
+    onQuery: (String) -> Unit,
+    onImport: (List<ExamImportItem>) -> Unit,
+    onFallbackToIcs: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var classCode by remember { mutableStateOf(savedClassCode) }
+    var selectedIndices by remember(state.exams) {
+        mutableStateOf(state.exams.indices.toSet())
+    }
+
+    LaunchedEffect(savedClassCode) {
+        if (classCode.isBlank()) classCode = savedClassCode
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(top = 4.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "⚡ 一键同步南邮考试",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "输入班级代码，从 StuDev 班级在线获取最新考试安排",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            OutlinedTextField(
+                value = classCode,
+                onValueChange = { newValue ->
+                    classCode = newValue.uppercase().filterNot { it.isWhitespace() }
+                },
+                label = { Text("班级代码") },
+                placeholder = { Text("例如：B241505") },
+                trailingIcon = {
+                    if (classCode.isNotEmpty()) {
+                        IconButton(onClick = { classCode = "" }) {
+                            Icon(
+                                painter = painterResource(Res.drawable.close_24px),
+                                contentDescription = "清除班级代码",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                },
+                supportingText = { Text("忽略大小写与空格，输入后会自动转为大写") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Characters,
+                    imeAction = ImeAction.Search
+                ),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        if (classCode.isNotBlank() && !state.isQuerying) onQuery(classCode)
+                    }
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Button(
+                onClick = { onQuery(classCode) },
+                enabled = classCode.isNotBlank() && !state.isQuerying,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
+                Text(
+                    text = if (state.isQuerying) "查询中…" else "查询考试安排",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            when {
+                state.isQuerying -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                strokeWidth = 3.dp
+                            )
+                            Text(
+                                text = "正在获取考试安排…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                }
+
+                state.errorMessage != null -> {
+                    ExamSyncErrorCard(
+                        message = state.errorMessage,
+                        onRetry = { onQuery(classCode) },
+                        onFallbackToIcs = onFallbackToIcs
+                    )
+                }
+
+                state.exams.isNotEmpty() -> {
+                    ExamSelectionSection(
+                        exams = state.exams,
+                        selectedIndices = selectedIndices,
+                        onSelectionChange = { selectedIndices = it },
+                        title = "找到 ${state.exams.size} 门考试"
+                    )
+
+                    Button(
+                        onClick = {
+                            onImport(
+                                state.exams.filterIndexed { index, _ -> index in selectedIndices }
+                            )
+                        },
+                        enabled = selectedIndices.isNotEmpty(),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Text(
+                            text = "导入选中的 ${selectedIndices.size} 门考试",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                state.hasQueried -> {
+                    ExamSyncErrorCard(
+                        message = "未查询到该班级的考试安排",
+                        onRetry = { onQuery(classCode) },
+                        onFallbackToIcs = onFallbackToIcs
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IcsExamPreviewBottomSheet(
+    exams: List<ExamImportItem>,
+    onDismiss: () -> Unit,
+    onImport: (List<ExamImportItem>) -> Unit
+) {
+    var selectedIndices by remember(exams) {
+        mutableStateOf(exams.indices.toSet())
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(top = 4.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "📄 导入 .ics 日历文件",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "已解析 ${exams.size} 项日程，确认后作为考试导入",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            ExamSelectionSection(
+                exams = exams,
+                selectedIndices = selectedIndices,
+                onSelectionChange = { selectedIndices = it },
+                title = "已解析 ${exams.size} 项日程"
+            )
+
+            Button(
+                onClick = {
+                    onImport(exams.filterIndexed { index, _ -> index in selectedIndices })
+                },
+                enabled = selectedIndices.isNotEmpty(),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
+                Text(
+                    text = "导入选中的 ${selectedIndices.size} 项日程",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamSelectionSection(
+    exams: List<ExamImportItem>,
+    selectedIndices: Set<Int>,
+    onSelectionChange: (Set<Int>) -> Unit,
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    val allSelected = exams.isNotEmpty() && selectedIndices.size == exams.size
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "已选择 ${selectedIndices.size} 项",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+            TextButton(
+                onClick = {
+                    onSelectionChange(if (allSelected) emptySet() else exams.indices.toSet())
+                }
+            ) {
+                Text(if (allSelected) "取消全选" else "全选")
+            }
+        }
+
+        exams.forEachIndexed { index, exam ->
+            ExamImportCard(
+                exam = exam,
+                selected = index in selectedIndices,
+                onToggle = { checked ->
+                    onSelectionChange(
+                        if (checked) selectedIndices + index else selectedIndices - index
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExamImportCard(
+    exam: ExamImportItem,
+    selected: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    val containerColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
+    OutlinedCard(
+        onClick = { onToggle(!selected) },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = containerColor),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 8.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = selected,
+                onCheckedChange = onToggle
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = exam.courseName,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = exam.scheduleLine(),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                exam.locationLine()?.let { locationText ->
+                    Text(
+                        text = locationText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                exam.teacher?.takeIf { it.isNotBlank() }?.let { teacher ->
+                    Text(
+                        text = "教师：$teacher",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                exam.note?.takeIf { it.isNotBlank() }?.let { note ->
+                    Text(
+                        text = note,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamSyncErrorCard(
+    message: String,
+    onRetry: () -> Unit,
+    onFallbackToIcs: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+            contentColor = MaterialTheme.colorScheme.onErrorContainer
+        ),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "⚠️ $message",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onRetry) {
+                    Text("重试")
+                }
+                TextButton(onClick = onFallbackToIcs) {
+                    Text("改用 .ics 导入")
+                }
+            }
+        }
+    }
+}
+
+private fun ExamImportItem.scheduleLine(): String {
+    val timeRange = when {
+        startTime.isNullOrBlank() -> null
+        endTime.isNullOrBlank() -> startTime
+        else -> "$startTime - $endTime"
+    }
+    return listOfNotNull(date.takeIf { it.isNotBlank() }, timeRange).joinToString(" · ")
+}
+
+private fun ExamImportItem.locationLine(): String? =
+    listOfNotNull(campus, location)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+        .ifBlank { null }

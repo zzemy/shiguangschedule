@@ -3,6 +3,7 @@ package com.xingheyuzhuan.shiguangschedule.data.repository
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableConfig
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableConfigDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableDao
@@ -65,6 +66,8 @@ class AppSettingsRepository(
         firstDayOfWeek = DayOfWeek.MONDAY.isoDayNumber
     )
 
+    private val NJUPT_EXAM_CLASS_CODE_KEY = stringPreferencesKey("njupt_exam_class_code")
+
     // 应用全局设置 (DataStore)
 
     /**
@@ -74,6 +77,22 @@ class AppSettingsRepository(
         val dbFirstTableId = courseTableDao.getFirstTableOnce()?.id ?: ""
 
         AppSettingsModel.fromPreferences(prefs, dbFirstTableId)
+    }
+
+    /**
+     * 获取上次使用的南邮考试同步班级代码。
+     */
+    fun getNjuptExamClassCode(): Flow<String> = dataStore.data.map { prefs ->
+        prefs[NJUPT_EXAM_CLASS_CODE_KEY].orEmpty()
+    }
+
+    /**
+     * 保存南邮考试同步班级代码，供下次同步时自动回填。
+     */
+    suspend fun saveNjuptExamClassCode(classCode: String) {
+        dataStore.edit { prefs ->
+            prefs[NJUPT_EXAM_CLASS_CODE_KEY] = classCode.trim().uppercase()
+        }
     }
 
     /**

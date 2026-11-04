@@ -1,5 +1,16 @@
 <div align="center">
 
+# 拾光南邮 (Shiguang Schedule · NJUPT Edition)
+
+> 🎓 **南京邮电大学专属深度定制版**  
+> 专为南邮学子打造：深度适配南邮正方教务系统、全校班级考试安排一键在线同步与倒计时、桌面小组件实时联动。
+
+</div>
+
+---
+
+<div align="center">
+
 # 拾光课程表
 
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/XingHeYuZhuan/shiguangschedule/total)  ![GitHub License](https://img.shields.io/github/license/XingHeYuZhuan/shiguangschedule)  ![GitHub Repo stars](https://img.shields.io/github/stars/XingHeYuZhuan/shiguangschedule)

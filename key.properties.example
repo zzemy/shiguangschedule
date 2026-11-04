@@ -1,0 +1,7 @@
+# 复制本文件为 key.properties 并填写真实值。
+# key.properties 与 *.jks / *.keystore 已被 .gitignore 忽略，请勿提交真实密钥。
+storeFile=androidApp/release.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=shiguang
+keyPassword=YOUR_KEY_PASSWORD
+storeType=PKCS12
