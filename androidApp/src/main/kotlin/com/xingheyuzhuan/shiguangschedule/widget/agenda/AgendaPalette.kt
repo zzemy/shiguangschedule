@@ -3,23 +3,18 @@ package com.xingheyuzhuan.shiguangschedule.widget.agenda
 import android.content.Context
 import android.content.res.Configuration
 import androidx.annotation.ColorInt
-import androidx.annotation.DrawableRes
-import com.xingheyuzhuan.shiguangschedule.R
 import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.WidgetThemeModeProto
 
 /**
- * 日程类小组件共享的分类视觉资源。
- * 明暗两套底色均放在 drawable/ 中，由渲染器按小组件主题模式显式选择，
- * 不依赖启动器的夜间资源限定符，避免强制深浅色时出现低对比度。
+ * 日程类小组件共享的分类强调色。
+ * 徽章与胶囊的底色由 layout / layout-night 中的静态 drawable 直接指定，
+ * 避免在 RemoteViews 中使用非 @RemotableViewMethod 的 setBackgroundResource。
  */
 internal data class AgendaAccent(
     @ColorInt val lightTextColor: Int,
-    @ColorInt val darkTextColor: Int,
-    @DrawableRes val lightBackgroundRes: Int,
-    @DrawableRes val darkBackgroundRes: Int
+    @ColorInt val darkTextColor: Int
 ) {
     fun textColor(isDark: Boolean): Int = if (isDark) darkTextColor else lightTextColor
-    fun backgroundRes(isDark: Boolean): Int = if (isDark) darkBackgroundRes else lightBackgroundRes
 }
 
 internal object AgendaPalette {
@@ -27,29 +22,20 @@ internal object AgendaPalette {
     /** 待办：低饱和度灰蓝 */
     val todo = AgendaAccent(
         lightTextColor = 0xFF5C6B8A.toInt(),
-        darkTextColor = 0xFFAEBBD6.toInt(),
-        lightBackgroundRes = R.drawable.widget_agenda_badge_todo,
-        darkBackgroundRes = R.drawable.widget_agenda_badge_todo_dark
+        darkTextColor = 0xFFAEBBD6.toInt()
     )
 
     /** 考试：柔和珊瑚红 */
     val exam = AgendaAccent(
         lightTextColor = 0xFFC05B56.toInt(),
-        darkTextColor = 0xFFF0A9A3.toInt(),
-        lightBackgroundRes = R.drawable.widget_agenda_badge_exam,
-        darkBackgroundRes = R.drawable.widget_agenda_badge_exam_dark
+        darkTextColor = 0xFFF0A9A3.toInt()
     )
 
     /** 日程：低饱和度鼠尾草绿 */
     val schedule = AgendaAccent(
         lightTextColor = 0xFF5F7D6B.toInt(),
-        darkTextColor = 0xFFA8C6B4.toInt(),
-        lightBackgroundRes = R.drawable.widget_agenda_badge_schedule,
-        darkBackgroundRes = R.drawable.widget_agenda_badge_schedule_dark
+        darkTextColor = 0xFFA8C6B4.toInt()
     )
-
-    fun pillBackgroundRes(isDark: Boolean): Int =
-        if (isDark) R.drawable.widget_agenda_pill_bg_dark else R.drawable.widget_agenda_pill_bg
 }
 
 /**

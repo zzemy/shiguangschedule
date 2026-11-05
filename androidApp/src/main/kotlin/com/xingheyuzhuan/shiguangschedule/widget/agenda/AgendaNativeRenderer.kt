@@ -11,7 +11,6 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.ColorInt
 import androidx.annotation.FloatRange
-import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.widget.RemoteViewsCompat
@@ -37,15 +36,46 @@ object AgendaNativeRenderer {
     private const val MAX_AGENDA_ITEMS = 50
 
     /**
-     * 日程节点分类，同时携带统一的徽章样式与分类强调色
+     * 日程节点分类及其分类强调色
      */
-    private enum class AgendaKind(
-        @StringRes val badgeTextRes: Int,
-        val accent: AgendaAccent
-    ) {
-        TODO(R.string.widget_agenda_badge_todo, AgendaPalette.todo),
-        EXAM(R.string.widget_agenda_badge_exam, AgendaPalette.exam),
-        SCHEDULE(R.string.widget_agenda_badge_schedule, AgendaPalette.schedule)
+    private enum class AgendaKind(val accent: AgendaAccent) {
+        TODO(AgendaPalette.todo),
+        EXAM(AgendaPalette.exam),
+        SCHEDULE(AgendaPalette.schedule)
+    }
+
+    private val BADGE_VIEW_IDS = intArrayOf(
+        R.id.tv_item_badge_todo,
+        R.id.tv_item_badge_exam,
+        R.id.tv_item_badge_schedule
+    )
+
+    private val COUNTDOWN_VIEW_IDS = intArrayOf(
+        R.id.tv_item_countdown_todo,
+        R.id.tv_item_countdown_exam,
+        R.id.tv_item_countdown_schedule
+    )
+
+    private fun AgendaKind.badgeViewId(): Int = when (this) {
+        AgendaKind.TODO -> R.id.tv_item_badge_todo
+        AgendaKind.EXAM -> R.id.tv_item_badge_exam
+        AgendaKind.SCHEDULE -> R.id.tv_item_badge_schedule
+    }
+
+    private fun AgendaKind.countdownViewId(): Int = when (this) {
+        AgendaKind.TODO -> R.id.tv_item_countdown_todo
+        AgendaKind.EXAM -> R.id.tv_item_countdown_exam
+        AgendaKind.SCHEDULE -> R.id.tv_item_countdown_schedule
+    }
+
+    /**
+     * 仅显示选中的分类视图，其余同组视图隐藏。
+     * 徽章与胶囊的背景是静态 drawable，RemoteViews 不支持 setBackgroundResource。
+     */
+    private fun RemoteViews.selectKindView(selectedId: Int, candidateIds: IntArray) {
+        candidateIds.forEach { id ->
+            setViewVisibility(id, if (id == selectedId) View.VISIBLE else View.GONE)
+        }
     }
 
     private data class AgendaItem(
@@ -277,8 +307,11 @@ object AgendaNativeRenderer {
 
         val accent = item.kind.accent
         val accentTextColor = accent.textColor(isDark)
-        val accentBackgroundRes = accent.backgroundRes(isDark)
-        val badgeText = context.getString(item.kind.badgeTextRes)
+        val badgeViewId = item.kind.badgeViewId()
+        val countdownViewId = item.kind.countdownViewId()
+
+        rv.selectKindView(badgeViewId, BADGE_VIEW_IDS)
+        rv.selectKindView(countdownViewId, COUNTDOWN_VIEW_IDS)
 
         val dateTag = if (item.date == today) {
             context.getString(R.string.widget_title_today)
@@ -303,19 +336,17 @@ object AgendaNativeRenderer {
 
         // 竖向分割线颜色已在 XML 布局中通过 drawable 静态指定，无需通过非法反射方法动态设置
 
-        rv.setTextViewText(R.id.tv_item_badge, badgeText)
-        rv.setTextColor(R.id.tv_item_badge, accentTextColor)
-        rv.setTextViewTextSize(R.id.tv_item_badge, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
-        rv.setInt(R.id.tv_item_badge, "setBackgroundResource", accentBackgroundRes)
+        // 徽章文案与背景在 XML 中静态指定，这里只同步主题色与字号
+        rv.setTextColor(badgeViewId, accentTextColor)
+        rv.setTextViewTextSize(badgeViewId, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
 
         rv.setTextViewText(R.id.tv_item_title, item.title)
         rv.setTextColor(R.id.tv_item_title, colors.primaryTextColor)
         rv.setTextViewTextSize(R.id.tv_item_title, TypedValue.COMPLEX_UNIT_DIP, 13.5f * scale)
 
-        rv.setTextViewText(R.id.tv_item_countdown, countdownText)
-        rv.setTextColor(R.id.tv_item_countdown, accentTextColor)
-        rv.setTextViewTextSize(R.id.tv_item_countdown, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
-        rv.setInt(R.id.tv_item_countdown, "setBackgroundResource", accentBackgroundRes)
+        rv.setTextViewText(countdownViewId, countdownText)
+        rv.setTextColor(countdownViewId, accentTextColor)
+        rv.setTextViewTextSize(countdownViewId, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
 
         if (locationText.isBlank()) {
             rv.setViewVisibility(R.id.tv_item_location, View.GONE)
@@ -352,11 +383,6 @@ object AgendaNativeRenderer {
         rv.setTextColor(R.id.tv_header_title, colors.primaryTextColor)
         rv.setTextViewTextSize(R.id.tv_header_title, TypedValue.COMPLEX_UNIT_DIP, 15f * scale)
 
-        rv.setInt(
-            R.id.tv_exam_countdown,
-            "setBackgroundResource",
-            AgendaPalette.pillBackgroundRes(isDark)
-        )
         rv.setTextColor(R.id.tv_exam_countdown, AgendaPalette.exam.textColor(isDark))
         rv.setTextViewTextSize(R.id.tv_exam_countdown, TypedValue.COMPLEX_UNIT_DIP, 10f * scale)
 

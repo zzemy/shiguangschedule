@@ -58,18 +58,47 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <!-- 徽章底色与文案均为静态资源，渲染器仅切换显隐，避免 RemoteViews 非法 setBackgroundResource -->
             <TextView
-                android:id="@+id/tv_item_badge"
+                android:id="@+id/tv_item_badge_todo"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/widget_agenda_badge_todo"
                 android:includeFontPadding="false"
                 android:paddingHorizontal="5dp"
                 android:paddingVertical="1.5dp"
+                android:text="@string/widget_agenda_badge_todo"
                 android:textColor="#5C6B8A"
                 android:textSize="9dp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_item_badge_exam"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/widget_agenda_badge_exam"
+                android:includeFontPadding="false"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="1.5dp"
+                android:text="@string/widget_agenda_badge_exam"
+                android:textColor="#C05B56"
+                android:textSize="9dp"
                 android:textStyle="bold"
-                tools:text="待办" />
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tv_item_badge_schedule"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/widget_agenda_badge_schedule"
+                android:includeFontPadding="false"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="1.5dp"
+                android:text="@string/widget_agenda_badge_schedule"
+                android:textColor="#5F7D6B"
+                android:textSize="9dp"
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tv_item_title"
@@ -99,18 +128,49 @@
             tools:text="教 2-302" />
     </LinearLayout>
 
-    <!-- 右侧状态列：统一低饱和胶囊 -->
-    <TextView
-        android:id="@+id/tv_item_countdown"
+    <!-- 右侧状态列：按分类切换的静态胶囊 -->
+    <FrameLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:background="@drawable/widget_agenda_badge_exam"
-        android:includeFontPadding="false"
-        android:paddingHorizontal="7dp"
-        android:paddingVertical="3dp"
-        android:textColor="#C05B56"
-        android:textSize="9.5dp"
-        android:textStyle="bold"
-        tools:text="还有16天" />
+        android:layout_marginStart="8dp">
+
+        <TextView
+            android:id="@+id/tv_item_countdown_todo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_agenda_badge_todo"
+            android:includeFontPadding="false"
+            android:paddingHorizontal="7dp"
+            android:paddingVertical="3dp"
+            android:textColor="#5C6B8A"
+            android:textSize="9.5dp"
+            android:textStyle="bold"
+            tools:text="还有16天" />
+
+        <TextView
+            android:id="@+id/tv_item_countdown_exam"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_agenda_badge_exam"
+            android:includeFontPadding="false"
+            android:paddingHorizontal="7dp"
+            android:paddingVertical="3dp"
+            android:textColor="#C05B56"
+            android:textSize="9.5dp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tv_item_countdown_schedule"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_agenda_badge_schedule"
+            android:includeFontPadding="false"
+            android:paddingHorizontal="7dp"
+            android:paddingVertical="3dp"
+            android:textColor="#5F7D6B"
+            android:textSize="9.5dp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </FrameLayout>
 </LinearLayout>

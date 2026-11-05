@@ -124,11 +124,6 @@ object AgendaCompactNativeRenderer {
             rv.setViewVisibility(R.id.tv_exam_meta, View.GONE)
         } else {
             rv.setViewVisibility(R.id.tv_exam_countdown, View.VISIBLE)
-            rv.setInt(
-                R.id.tv_exam_countdown,
-                "setBackgroundResource",
-                AgendaPalette.pillBackgroundRes(isDark)
-            )
             rv.setTextViewText(R.id.tv_exam_countdown, countdownText(context, exam.daysLeft))
             rv.setTextColor(R.id.tv_exam_countdown, examAccent)
             rv.setTextViewTextSize(R.id.tv_exam_countdown, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
@@ -152,14 +147,9 @@ object AgendaCompactNativeRenderer {
         val todo = nearestTodo
         if (todo == null) {
             rv.setViewVisibility(R.id.container_todo_footer, View.VISIBLE)
-            rv.setInt(
-                R.id.tv_todo_label,
-                "setBackgroundResource",
-                AgendaPalette.todo.backgroundRes(isDark)
-            )
-            rv.setTextViewText(R.id.tv_todo_label, context.getString(R.string.widget_agenda_badge_todo))
-            rv.setTextColor(R.id.tv_todo_label, AgendaPalette.todo.textColor(isDark))
-            rv.setTextViewTextSize(R.id.tv_todo_label, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
+            rv.selectTodoLabel(R.id.tv_todo_label_todo)
+            rv.setTextColor(R.id.tv_todo_label_todo, AgendaPalette.todo.textColor(isDark))
+            rv.setTextViewTextSize(R.id.tv_todo_label_todo, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
 
             rv.setTextViewText(R.id.tv_todo_title, context.getString(R.string.widget_agenda_focus_no_todo))
             rv.setTextColor(R.id.tv_todo_title, colors.secondaryTextColor)
@@ -167,11 +157,15 @@ object AgendaCompactNativeRenderer {
             rv.setViewVisibility(R.id.tv_todo_meta, View.GONE)
         } else {
             val accent = todo.kind.accent
+            val todoLabelId = if (todo.kind == AgendaKind.SCHEDULE) {
+                R.id.tv_todo_label_schedule
+            } else {
+                R.id.tv_todo_label_todo
+            }
             rv.setViewVisibility(R.id.container_todo_footer, View.VISIBLE)
-            rv.setInt(R.id.tv_todo_label, "setBackgroundResource", accent.backgroundRes(isDark))
-            rv.setTextViewText(R.id.tv_todo_label, context.getString(badgeTextRes(todo.kind)))
-            rv.setTextColor(R.id.tv_todo_label, accent.textColor(isDark))
-            rv.setTextViewTextSize(R.id.tv_todo_label, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
+            rv.selectTodoLabel(todoLabelId)
+            rv.setTextColor(todoLabelId, accent.textColor(isDark))
+            rv.setTextViewTextSize(todoLabelId, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
 
             rv.setTextViewText(R.id.tv_todo_title, todo.title)
             rv.setTextColor(R.id.tv_todo_title, colors.primaryTextColor)
@@ -200,10 +194,18 @@ object AgendaCompactNativeRenderer {
         rv.setTextViewTextSize(R.id.tv_empty_hint, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
     }
 
-    private fun badgeTextRes(kind: AgendaKind): Int = when (kind) {
-        AgendaKind.EXAM -> R.string.widget_agenda_badge_exam
-        AgendaKind.TODO -> R.string.widget_agenda_badge_todo
-        AgendaKind.SCHEDULE -> R.string.widget_agenda_badge_schedule
+    /**
+     * 仅显示选中的标签视图；标签文案与背景为静态资源，避免使用非法 setBackgroundResource。
+     */
+    private fun RemoteViews.selectTodoLabel(selectedId: Int) {
+        setViewVisibility(
+            R.id.tv_todo_label_todo,
+            if (selectedId == R.id.tv_todo_label_todo) View.VISIBLE else View.GONE
+        )
+        setViewVisibility(
+            R.id.tv_todo_label_schedule,
+            if (selectedId == R.id.tv_todo_label_schedule) View.VISIBLE else View.GONE
+        )
     }
 
     private fun countdownText(context: Context, daysLeft: Int): String =
