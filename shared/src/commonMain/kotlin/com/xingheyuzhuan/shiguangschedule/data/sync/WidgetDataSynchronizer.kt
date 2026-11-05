@@ -280,8 +280,8 @@ class WidgetDataSynchronizer(
                                     name = "⏳ [倒计时] ${nextExam.title} (还有${days}天)",
                                     teacher = "",
                                     position = listOfNotNull(nextExam.date, nextExam.location).joinToString(" · "),
-                                    startTime = "00:00",
-                                    endTime = "23:59",
+                                    startTime = nextExam.startTime ?: "",
+                                    endTime = nextExam.endTime ?: "",
                                     isSkipped = false,
                                     date = dateString,
                                     colorInt = 0

@@ -18,6 +18,7 @@ import com.xingheyuzhuan.shiguangschedule.MainActivity
 import com.xingheyuzhuan.shiguangschedule.R
 import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.WidgetThemeModeProto
 import com.xingheyuzhuan.shiguangschedule.tool.createMaterialKolorScheme
+import com.xingheyuzhuan.shiguangschedule.widget.WidgetCourseProto
 import com.xingheyuzhuan.shiguangschedule.widget.WidgetSnapshot
 import java.time.LocalDate
 import java.time.LocalTime
@@ -58,10 +59,12 @@ object TinyNativeRenderer {
 
         val todayAllCourses = snapshot.courses.filter { it.date == todayStr }
         val remainingCourses = todayAllCourses.filter { course ->
-            !course.is_skipped && try {
+            !course.is_skipped && (course.id.startsWith("countdown-") || try {
                 LocalTime.parse(course.end_time) > now
-            } catch (_: Exception) { true }
-        }
+            } catch (_: Exception) { true })
+        }.sortedWith(
+            compareBy<WidgetCourseProto> { !it.id.startsWith("countdown-") }.thenBy { it.start_time }
+        )
 
         // 4. 根据当前周数与剩余课程分发视图状态
         if (currentWeek != null && remainingCourses.isNotEmpty()) {

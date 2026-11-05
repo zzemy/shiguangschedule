@@ -34,10 +34,17 @@ object ListVerticalCourseItemRenderer {
         val startTimeText = course.start_time.take(5)
         val endTimeText = course.end_time.take(5)
 
-        itemRv.setTextViewText(R.id.tv_course_start_time, startTimeText)
-        itemRv.setTextViewText(R.id.tv_course_start_time_dark, startTimeText)
-        itemRv.setTextViewText(R.id.tv_course_end_time, endTimeText)
-        itemRv.setTextViewText(R.id.tv_course_end_time_dark, endTimeText)
+        if (startTimeText.isBlank() && endTimeText.isBlank()) {
+            itemRv.setViewVisibility(R.id.container_time_vertical, View.GONE)
+            itemRv.setViewVisibility(R.id.container_time_vertical_dark, View.GONE)
+        } else {
+            itemRv.setViewVisibility(R.id.container_time_vertical, View.VISIBLE)
+            itemRv.setViewVisibility(R.id.container_time_vertical_dark, View.VISIBLE)
+            itemRv.setTextViewText(R.id.tv_course_start_time, startTimeText)
+            itemRv.setTextViewText(R.id.tv_course_start_time_dark, startTimeText)
+            itemRv.setTextViewText(R.id.tv_course_end_time, endTimeText)
+            itemRv.setTextViewText(R.id.tv_course_end_time_dark, endTimeText)
+        }
 
         // 4. 地点隐藏控制
         val hideLocation = snapshot.style?.widget_style?.hide_location ?: false
