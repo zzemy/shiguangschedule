@@ -265,16 +265,18 @@ private suspend fun loadAgendaItems(
             Log.w(TAG, "日程数据仓库不可用，改用 Widget 本地数据")
             null
         } else {
-            val tableId = loadOrNull("当前课表 ID", 2.seconds) {
-                appSettingsRepository.getAppSettingsOnce().currentCourseTableId
-            }.orEmpty()
+            val settings = loadOrNull("当前课表设置", 2.seconds) {
+                appSettingsRepository.getAppSettingsOnce()
+            }
 
-            if (tableId.isBlank()) {
+            if (settings == null) {
+                null
+            } else if (settings.currentCourseTableId.isBlank()) {
                 emptyList()
             } else {
                 loadOrNull("日程看板事件", 3.seconds) {
                     scheduleEventRepository
-                        .getUpcomingAgendaEventsFlow(tableId, today.toString())
+                        .getUpcomingAgendaEventsFlow(settings.currentCourseTableId, today.toString())
                         .first()
                 }?.mapNotNull { event -> event.toAgendaItemProto(today) }
             }

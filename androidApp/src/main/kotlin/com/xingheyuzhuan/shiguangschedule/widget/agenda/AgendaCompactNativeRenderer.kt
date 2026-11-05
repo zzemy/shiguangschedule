@@ -15,7 +15,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import com.xingheyuzhuan.shiguangschedule.MainActivity
 import com.xingheyuzhuan.shiguangschedule.R
-import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.WidgetThemeModeProto
 import com.xingheyuzhuan.shiguangschedule.tool.createMaterialKolorScheme
 import com.xingheyuzhuan.shiguangschedule.widget.WidgetAgendaItemProto
 import com.xingheyuzhuan.shiguangschedule.widget.WidgetSnapshot
@@ -25,19 +24,19 @@ import java.time.temporal.ChronoUnit
 
 /**
  * 日程与考试近期焦点 2x2 小组件渲染器
- * 上半部展示最近考试倒计时，下半部展示今日最近待办。
+ * 上半部展示最近考试倒计时，下半部展示最近一条待办/日程。
+ *
+ * 布局的 layout/ 与 layout-night/ 必须使用同一套 View ID，
+ * 这里只绑定这一套 ID，避免宿主 inflate 后找不到另一套 ID 触发 ActionException。
  */
 object AgendaCompactNativeRenderer {
 
     private val DATE_FORMATTER = DateTimeFormatter.ofPattern("MM.dd")
 
-    private const val ACCENT_EXAM_DAY = 0xFFE5484D.toInt()
-    private const val ACCENT_EXAM_NIGHT = 0xFFFF8A80.toInt()
-
-    private enum class AgendaKind {
-        EXAM,
-        TODO,
-        SCHEDULE
+    private enum class AgendaKind(val accent: AgendaAccent) {
+        EXAM(AgendaPalette.exam),
+        TODO(AgendaPalette.todo),
+        SCHEDULE(AgendaPalette.schedule)
     }
 
     private data class AgendaEntry(
@@ -55,43 +54,8 @@ object AgendaCompactNativeRenderer {
     private data class ContentColors(
         val backgroundColor: Int,
         val primaryTextColor: Int,
-        val secondaryTextColor: Int
-    )
-
-    private data class ViewIds(
-        val root: Int,
-        val cardBg: Int,
-        val examLabel: Int,
-        val examCountdown: Int,
-        val examTitle: Int,
-        val examMeta: Int,
-        val todoLabel: Int,
-        val todoTitle: Int,
-        val todoMeta: Int
-    )
-
-    private val LIGHT_IDS = ViewIds(
-        root = R.id.widget_root,
-        cardBg = R.id.card_bg_image,
-        examLabel = R.id.tv_exam_label,
-        examCountdown = R.id.tv_exam_countdown,
-        examTitle = R.id.tv_exam_title,
-        examMeta = R.id.tv_exam_meta,
-        todoLabel = R.id.tv_todo_label,
-        todoTitle = R.id.tv_todo_title,
-        todoMeta = R.id.tv_todo_meta
-    )
-
-    private val DARK_IDS = ViewIds(
-        root = R.id.widget_root_dark,
-        cardBg = R.id.card_bg_image_dark,
-        examLabel = R.id.tv_exam_label_dark,
-        examCountdown = R.id.tv_exam_countdown_dark,
-        examTitle = R.id.tv_exam_title_dark,
-        examMeta = R.id.tv_exam_meta_dark,
-        todoLabel = R.id.tv_todo_label_dark,
-        todoTitle = R.id.tv_todo_title_dark,
-        todoMeta = R.id.tv_todo_meta_dark
+        val secondaryTextColor: Int,
+        val dividerColor: Int
     )
 
     /**
@@ -116,105 +80,138 @@ object AgendaCompactNativeRenderer {
             .filter { it.kind == AgendaKind.EXAM }
             .minWithOrNull(compareBy<AgendaEntry> { it.date }.thenBy { it.sortTime })
 
-        // 优先显示今日待办；若今日无待办，自动展示未来最近的 1 条待办/日程
+        // 优先展示最近的待办/日程；没有时显示空状态
         val nearestTodo = entries.asSequence()
             .filter { it.kind != AgendaKind.EXAM }
             .minWithOrNull(compareBy<AgendaEntry> { it.date }.thenBy { it.sortTime })
 
         val widgetStyle = snapshot.style?.widget_style
-        val alphaPercent: Float = widgetStyle?.background_alpha ?: 1.0f
+        val isDark = resolveWidgetIsDark(context, widgetStyle?.theme_mode)
+        val colors = resolveContentColors(isDark, widgetStyle?.seed_color)
+        val alphaPercent = (widgetStyle?.background_alpha ?: 1.0f).coerceIn(0.0f, 1.0f)
         val rawScale = widgetStyle?.font_scale ?: 1.0f
         val scale = if (rawScale > 0f) rawScale else 1.0f
 
-        val lightColors = resolveContentColors(
-            isDark = widgetStyle?.theme_mode == WidgetThemeModeProto.WIDGET_THEME_DARK,
-            seedColorLong = widgetStyle?.seed_color
-        )
-        val darkColors = resolveContentColors(
-            isDark = widgetStyle?.theme_mode != WidgetThemeModeProto.WIDGET_THEME_LIGHT,
-            seedColorLong = widgetStyle?.seed_color
-        )
-
-        bindGroup(context, rv, LIGHT_IDS, lightColors, alphaPercent, scale, nextExam, nearestTodo, ACCENT_EXAM_DAY)
-        bindGroup(context, rv, DARK_IDS, darkColors, alphaPercent, scale, nextExam, nearestTodo, ACCENT_EXAM_NIGHT)
+        bindWidget(context, rv, today, isDark, colors, alphaPercent, scale, nextExam, nearestTodo)
 
         return rv
     }
 
-    private fun bindGroup(
+    private fun bindWidget(
         context: Context,
         rv: RemoteViews,
-        ids: ViewIds,
+        today: LocalDate,
+        isDark: Boolean,
         colors: ContentColors,
         alphaPercent: Float,
         scale: Float,
         exam: AgendaEntry?,
-        todayTodo: AgendaEntry?,
-        examAccent: Int
+        nearestTodo: AgendaEntry?
     ) {
-        rv.setImageViewBackground(ids.cardBg, colors.backgroundColor, alphaPercent)
+        rv.setImageViewBackground(R.id.card_bg_image, colors.backgroundColor, alphaPercent)
+        rv.setInt(R.id.divider_horizontal, "setBackgroundColor", colors.dividerColor)
 
-        rv.setTextColor(ids.examLabel, examAccent)
-        rv.setTextViewTextSize(ids.examLabel, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
+        // 顶部：分区标题与倒计时胶囊
+        val examAccent = AgendaPalette.exam.textColor(isDark)
+        rv.setTextColor(R.id.tv_exam_label, examAccent)
+        rv.setTextViewTextSize(R.id.tv_exam_label, TypedValue.COMPLEX_UNIT_DIP, 10.5f * scale)
 
         if (exam == null) {
-            rv.setViewVisibility(ids.examCountdown, View.GONE)
-            rv.setTextViewText(ids.examTitle, context.getString(R.string.widget_agenda_no_exam))
-            rv.setTextColor(ids.examTitle, colors.primaryTextColor)
-            rv.setTextViewTextSize(ids.examTitle, TypedValue.COMPLEX_UNIT_DIP, 14f * scale)
-            rv.setViewVisibility(ids.examMeta, View.GONE)
+            rv.setViewVisibility(R.id.tv_exam_countdown, View.GONE)
+            rv.setTextViewText(R.id.tv_exam_title, context.getString(R.string.widget_agenda_no_exam))
+            rv.setTextColor(R.id.tv_exam_title, colors.primaryTextColor)
+            rv.setTextViewTextSize(R.id.tv_exam_title, TypedValue.COMPLEX_UNIT_DIP, 14f * scale)
+            rv.setViewVisibility(R.id.tv_exam_meta, View.GONE)
         } else {
-            rv.setViewVisibility(ids.examCountdown, View.VISIBLE)
-            rv.setTextViewText(
-                ids.examCountdown,
-                if (exam.daysLeft <= 0) {
-                    context.getString(R.string.widget_title_today)
-                } else {
-                    context.getString(R.string.widget_agenda_days_left, exam.daysLeft)
-                }
+            rv.setViewVisibility(R.id.tv_exam_countdown, View.VISIBLE)
+            rv.setInt(
+                R.id.tv_exam_countdown,
+                "setBackgroundResource",
+                AgendaPalette.pillBackgroundRes(isDark)
             )
-            rv.setTextColor(ids.examCountdown, examAccent)
-            rv.setTextViewTextSize(ids.examCountdown, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
+            rv.setTextViewText(R.id.tv_exam_countdown, countdownText(context, exam.daysLeft))
+            rv.setTextColor(R.id.tv_exam_countdown, examAccent)
+            rv.setTextViewTextSize(R.id.tv_exam_countdown, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
 
-            rv.setTextViewText(ids.examTitle, exam.title)
-            rv.setTextColor(ids.examTitle, colors.primaryTextColor)
-            rv.setTextViewTextSize(ids.examTitle, TypedValue.COMPLEX_UNIT_DIP, 14f * scale)
+            rv.setTextViewText(R.id.tv_exam_title, exam.title)
+            rv.setTextColor(R.id.tv_exam_title, colors.primaryTextColor)
+            rv.setTextViewTextSize(R.id.tv_exam_title, TypedValue.COMPLEX_UNIT_DIP, 16f * scale)
 
             val examMeta = buildExamMeta(exam)
             if (examMeta.isBlank()) {
-                rv.setViewVisibility(ids.examMeta, View.GONE)
+                rv.setViewVisibility(R.id.tv_exam_meta, View.GONE)
             } else {
-                rv.setViewVisibility(ids.examMeta, View.VISIBLE)
-                rv.setTextViewText(ids.examMeta, examMeta)
-                rv.setTextColor(ids.examMeta, colors.secondaryTextColor)
-                rv.setTextViewTextSize(ids.examMeta, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
+                rv.setViewVisibility(R.id.tv_exam_meta, View.VISIBLE)
+                rv.setTextViewText(R.id.tv_exam_meta, examMeta)
+                rv.setTextColor(R.id.tv_exam_meta, colors.secondaryTextColor)
+                rv.setTextViewTextSize(R.id.tv_exam_meta, TypedValue.COMPLEX_UNIT_DIP, 10.5f * scale)
             }
         }
 
-        rv.setTextColor(ids.todoLabel, colors.secondaryTextColor)
-        rv.setTextViewTextSize(ids.todoLabel, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
+        // 底部：最近待办 / 日程，无数据时保留结构并显示弱化占位
+        val todo = nearestTodo
+        if (todo == null) {
+            rv.setViewVisibility(R.id.container_todo_footer, View.VISIBLE)
+            rv.setInt(
+                R.id.tv_todo_label,
+                "setBackgroundResource",
+                AgendaPalette.todo.backgroundRes(isDark)
+            )
+            rv.setTextViewText(R.id.tv_todo_label, context.getString(R.string.widget_agenda_badge_todo))
+            rv.setTextColor(R.id.tv_todo_label, AgendaPalette.todo.textColor(isDark))
+            rv.setTextViewTextSize(R.id.tv_todo_label, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
 
-        if (todayTodo == null) {
-            rv.setTextViewText(ids.todoTitle, context.getString(R.string.widget_agenda_no_today_todo))
-            rv.setTextColor(ids.todoTitle, colors.primaryTextColor)
-            rv.setTextViewTextSize(ids.todoTitle, TypedValue.COMPLEX_UNIT_DIP, 11.5f * scale)
-            rv.setViewVisibility(ids.todoMeta, View.GONE)
+            rv.setTextViewText(R.id.tv_todo_title, context.getString(R.string.widget_agenda_focus_no_todo))
+            rv.setTextColor(R.id.tv_todo_title, colors.secondaryTextColor)
+            rv.setTextViewTextSize(R.id.tv_todo_title, TypedValue.COMPLEX_UNIT_DIP, 11f * scale)
+            rv.setViewVisibility(R.id.tv_todo_meta, View.GONE)
         } else {
-            rv.setTextViewText(ids.todoTitle, todayTodo.title)
-            rv.setTextColor(ids.todoTitle, colors.primaryTextColor)
-            rv.setTextViewTextSize(ids.todoTitle, TypedValue.COMPLEX_UNIT_DIP, 11.5f * scale)
+            val accent = todo.kind.accent
+            rv.setViewVisibility(R.id.container_todo_footer, View.VISIBLE)
+            rv.setInt(R.id.tv_todo_label, "setBackgroundResource", accent.backgroundRes(isDark))
+            rv.setTextViewText(R.id.tv_todo_label, context.getString(badgeTextRes(todo.kind)))
+            rv.setTextColor(R.id.tv_todo_label, accent.textColor(isDark))
+            rv.setTextViewTextSize(R.id.tv_todo_label, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
 
-            val todoMeta = buildTodoMeta(todayTodo)
+            rv.setTextViewText(R.id.tv_todo_title, todo.title)
+            rv.setTextColor(R.id.tv_todo_title, colors.primaryTextColor)
+            rv.setTextViewTextSize(R.id.tv_todo_title, TypedValue.COMPLEX_UNIT_DIP, 11.5f * scale)
+
+            val todoMeta = buildTodoMeta(context, todo, today)
             if (todoMeta.isBlank()) {
-                rv.setViewVisibility(ids.todoMeta, View.GONE)
+                rv.setViewVisibility(R.id.tv_todo_meta, View.GONE)
             } else {
-                rv.setViewVisibility(ids.todoMeta, View.VISIBLE)
-                rv.setTextViewText(ids.todoMeta, todoMeta)
-                rv.setTextColor(ids.todoMeta, colors.secondaryTextColor)
-                rv.setTextViewTextSize(ids.todoMeta, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
+                rv.setViewVisibility(R.id.tv_todo_meta, View.VISIBLE)
+                rv.setTextViewText(R.id.tv_todo_meta, todoMeta)
+                rv.setTextColor(R.id.tv_todo_meta, colors.secondaryTextColor)
+                rv.setTextViewTextSize(R.id.tv_todo_meta, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
             }
         }
+
+        // 空状态：考试与待办都没有时整卡居中展示
+        val isEmpty = exam == null && todo == null
+        rv.setViewVisibility(R.id.container_content, if (isEmpty) View.GONE else View.VISIBLE)
+        rv.setViewVisibility(R.id.container_empty, if (isEmpty) View.VISIBLE else View.GONE)
+        rv.setTextViewText(R.id.tv_empty_title, context.getString(R.string.widget_agenda_focus_empty))
+        rv.setTextColor(R.id.tv_empty_title, colors.primaryTextColor)
+        rv.setTextViewTextSize(R.id.tv_empty_title, TypedValue.COMPLEX_UNIT_DIP, 12.5f * scale)
+        rv.setTextViewText(R.id.tv_empty_hint, context.getString(R.string.widget_agenda_empty_hint))
+        rv.setTextColor(R.id.tv_empty_hint, colors.secondaryTextColor)
+        rv.setTextViewTextSize(R.id.tv_empty_hint, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
     }
+
+    private fun badgeTextRes(kind: AgendaKind): Int = when (kind) {
+        AgendaKind.EXAM -> R.string.widget_agenda_badge_exam
+        AgendaKind.TODO -> R.string.widget_agenda_badge_todo
+        AgendaKind.SCHEDULE -> R.string.widget_agenda_badge_schedule
+    }
+
+    private fun countdownText(context: Context, daysLeft: Int): String =
+        if (daysLeft <= 0) {
+            context.getString(R.string.widget_title_today)
+        } else {
+            context.getString(R.string.widget_agenda_days_left, daysLeft)
+        }
 
     private fun toAgendaEntry(item: WidgetAgendaItemProto, today: LocalDate): AgendaEntry? {
         val date = parseDate(item.date) ?: return null
@@ -245,19 +242,16 @@ object AgendaCompactNativeRenderer {
         val parts = mutableListOf(entry.date.format(DATE_FORMATTER))
         val time = formatTimeRange(entry.startTime, entry.endTime)
         if (time.isNotBlank()) parts += time
-        if (entry.location.isNotBlank()) parts += entry.location
+        if (entry.location.isNotBlank()) parts += entry.location.trim()
         return parts.joinToString(" · ")
     }
 
-    private fun buildTodoMeta(entry: AgendaEntry): String {
-        val today = LocalDate.now()
-        val dateText = if (entry.date == today) {
-            entry.startTime.ifBlank { "今天" }
+    private fun buildTodoMeta(context: Context, entry: AgendaEntry, today: LocalDate): String =
+        if (entry.date == today) {
+            entry.startTime.trim().ifBlank { context.getString(R.string.widget_title_today) }
         } else {
             entry.date.format(DATE_FORMATTER)
         }
-        return dateText
-    }
 
     private fun formatTimeRange(startTime: String, endTime: String): String {
         val start = startTime.trim()
@@ -286,7 +280,6 @@ object AgendaCompactNativeRenderer {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         rv.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-        rv.setOnClickPendingIntent(R.id.widget_root_dark, pendingIntent)
     }
 
     private fun resolveContentColors(isDark: Boolean, seedColorLong: Long?): ContentColors {
@@ -300,14 +293,16 @@ object AgendaCompactNativeRenderer {
             ContentColors(
                 backgroundColor = scheme.surfaceContainer.toArgb(),
                 primaryTextColor = scheme.onSurface.toArgb(),
-                secondaryTextColor = scheme.onSurfaceVariant.toArgb()
+                secondaryTextColor = scheme.onSurfaceVariant.toArgb(),
+                dividerColor = scheme.outlineVariant.copy(alpha = 0.55f).toArgb()
             )
         } else {
-            val contentColor = scheme.onPrimaryContainer.toArgb()
+            val contentColor = scheme.onPrimaryContainer
             ContentColors(
                 backgroundColor = scheme.primaryContainer.toArgb(),
-                primaryTextColor = contentColor,
-                secondaryTextColor = contentColor
+                primaryTextColor = contentColor.toArgb(),
+                secondaryTextColor = contentColor.copy(alpha = 0.72f).toArgb(),
+                dividerColor = contentColor.copy(alpha = 0.18f).toArgb()
             )
         }
     }

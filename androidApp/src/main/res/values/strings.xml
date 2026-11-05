@@ -41,9 +41,11 @@
     <string name="widget_agenda_empty_hint">点击添加日程或考试</string>
     <string name="widget_agenda_all_day">全天</string>
     <string name="widget_agenda_header_date">%1$d月%2$d日 %3$s</string>
-    <string name="widget_agenda_exam_countdown">⏳ 还有%1$d天</string>
-    <string name="widget_agenda_exam_today">⏳ 今天考试</string>
+    <string name="widget_agenda_exam_countdown">还有%1$d天</string>
+    <string name="widget_agenda_exam_today">今天</string>
     <string name="widget_agenda_days_left">还有%1$d天</string>
+    <string name="widget_agenda_focus_empty">近期无待办事项</string>
+    <string name="widget_agenda_focus_no_todo">近期暂无待办</string>
     <string name="widget_agenda_nearest_exam">最近考试</string>
     <string name="widget_agenda_no_exam">暂无考试安排</string>
     <string name="widget_agenda_today_todo">今日待办</string>

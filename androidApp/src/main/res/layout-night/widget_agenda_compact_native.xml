@@ -1,24 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/widget_root_dark"
+    android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <ImageView
-        android:id="@+id/card_bg_image_dark"
+        android:id="@+id/card_bg_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitXY"
         android:src="@drawable/widget_bg_rounded" />
 
     <LinearLayout
+        android:id="@+id/container_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="13dp">
+        android:padding="14dp">
 
-        <!-- 顶部标签与胶囊 -->
+        <!-- 顶部：分区标题 + 精致倒计时胶囊 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -26,13 +27,14 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tv_exam_label_dark"
+                android:id="@+id/tv_exam_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:includeFontPadding="false"
+                android:letterSpacing="0.04"
                 android:text="近期考试"
-                android:textColor="#FF8A80"
-                android:textSize="11dp"
+                android:textColor="#F0A9A3"
+                android:textSize="10.5dp"
                 android:textStyle="bold" />
 
             <View
@@ -40,45 +42,44 @@
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
-            <!-- 胶囊样式 -->
             <TextView
-                android:id="@+id/tv_exam_countdown_dark"
+                android:id="@+id/tv_exam_countdown"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/widget_agenda_pill_bg"
+                android:background="@drawable/widget_agenda_pill_bg_dark"
                 android:includeFontPadding="false"
                 android:paddingHorizontal="7dp"
-                android:paddingVertical="2dp"
-                android:textColor="#FF8A80"
-                android:textSize="10dp"
+                android:paddingVertical="2.5dp"
+                android:textColor="#F0A9A3"
+                android:textSize="9.5dp"
                 android:textStyle="bold"
                 tools:text="还有16天" />
         </LinearLayout>
 
-        <!-- 中部：考试大标题与具体时间考场 -->
+        <!-- 中部：考试科目与时间考场 -->
         <TextView
-            android:id="@+id/tv_exam_title_dark"
+            android:id="@+id/tv_exam_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="7dp"
             android:ellipsize="end"
             android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_text_primary"
             android:textSize="16dp"
             android:textStyle="bold"
-            tools:text="高数期中" />
+            tools:text="高等数学期中" />
 
         <TextView
-            android:id="@+id/tv_exam_meta_dark"
+            android:id="@+id/tv_exam_meta"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="3dp"
             android:ellipsize="end"
             android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_text_secondary"
-            android:textSize="10dp"
+            android:textSize="10.5dp"
             tools:text="11.21 08:00-09:50 · 教 2-302" />
 
         <View
@@ -86,57 +87,95 @@
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- 细分割线 -->
         <View
-            android:id="@+id/divider_horizontal_dark"
+            android:id="@+id/divider_horizontal"
             android:layout_width="match_parent"
             android:layout_height="0.6dp"
-            android:layout_marginVertical="6dp"
+            android:layout_marginVertical="7dp"
             android:background="#26FFFFFF" />
 
-        <!-- 底部：最近待办 / 日程条目 -->
+        <!-- 底部：最近待办 / 日程 -->
         <LinearLayout
-            android:id="@+id/container_todo_footer_dark"
+            android:id="@+id/container_todo_footer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tv_todo_label_dark"
+                android:id="@+id/tv_todo_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/widget_agenda_badge_todo"
+                android:background="@drawable/widget_agenda_badge_todo_dark"
                 android:includeFontPadding="false"
-                android:paddingHorizontal="4dp"
-                android:paddingVertical="1dp"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="1.5dp"
                 android:text="待办"
-                android:textColor="#38BDF8"
+                android:textColor="#AEBBD6"
                 android:textSize="9dp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/tv_todo_title_dark"
+                android:id="@+id/tv_todo_title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
+                android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:textColor="@color/widget_text_primary"
-                android:textSize="11dp"
+                android:textSize="11.5dp"
                 tools:text="领笔记会员" />
 
             <TextView
-                android:id="@+id/tv_todo_meta_dark"
+                android:id="@+id/tv_todo_meta"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="4dp"
+                android:layout_marginStart="5dp"
                 android:includeFontPadding="false"
                 android:textColor="@color/widget_text_hint"
                 android:textSize="9.5dp"
                 tools:text="11.11" />
         </LinearLayout>
+    </LinearLayout>
+
+    <!-- 空状态：居中、克制、饱满 -->
+    <LinearLayout
+        android:id="@+id/container_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="14dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <View
+            android:layout_width="20dp"
+            android:layout_height="2dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/widget_agenda_empty_accent" />
+
+        <TextView
+            android:id="@+id/tv_empty_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.04"
+            android:text="@string/widget_agenda_focus_empty"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="12.5dp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_empty_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:includeFontPadding="false"
+            android:text="@string/widget_agenda_empty_hint"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="9.5dp" />
     </LinearLayout>
 </FrameLayout>

@@ -10,7 +10,6 @@ import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.ColorInt
-import androidx.annotation.DrawableRes
 import androidx.annotation.FloatRange
 import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.Color
@@ -18,7 +17,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.widget.RemoteViewsCompat
 import com.xingheyuzhuan.shiguangschedule.MainActivity
 import com.xingheyuzhuan.shiguangschedule.R
-import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.WidgetThemeModeProto
 import com.xingheyuzhuan.shiguangschedule.tool.createMaterialKolorScheme
 import com.xingheyuzhuan.shiguangschedule.widget.WidgetAgendaItemProto
 import com.xingheyuzhuan.shiguangschedule.widget.WidgetSnapshot
@@ -27,7 +25,10 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 /**
- * 日程与考试看板原生小组件渲染器
+ * 日程与考试看板原生小组件渲染器（4x2）
+ *
+ * 布局的 layout/ 与 layout-night/ 必须使用同一套 View ID，
+ * 这里只绑定这一套 ID，避免宿主 inflate 后找不到另一套 ID 触发 ActionException。
  */
 object AgendaNativeRenderer {
 
@@ -35,21 +36,16 @@ object AgendaNativeRenderer {
 
     private const val MAX_AGENDA_ITEMS = 50
 
-    private const val COLOR_TODO = 0xFF1A73E8.toInt()
-    private const val COLOR_EXAM = 0xFFE5484D.toInt()
-    private const val COLOR_SCHEDULE = 0xFF2E7D32.toInt()
-
     /**
-     * 日程节点分类，同时携带徽章文案、背景与文字颜色
+     * 日程节点分类，同时携带统一的徽章样式与分类强调色
      */
     private enum class AgendaKind(
         @StringRes val badgeTextRes: Int,
-        @DrawableRes val badgeBackgroundRes: Int,
-        @ColorInt val badgeTextColor: Int
+        val accent: AgendaAccent
     ) {
-        TODO(R.string.widget_agenda_badge_todo, R.drawable.widget_agenda_badge_todo, COLOR_TODO),
-        EXAM(R.string.widget_agenda_badge_exam, R.drawable.widget_agenda_badge_exam, COLOR_EXAM),
-        SCHEDULE(R.string.widget_agenda_badge_schedule, R.drawable.widget_agenda_badge_schedule, COLOR_SCHEDULE)
+        TODO(R.string.widget_agenda_badge_todo, AgendaPalette.todo),
+        EXAM(R.string.widget_agenda_badge_exam, AgendaPalette.exam),
+        SCHEDULE(R.string.widget_agenda_badge_schedule, AgendaPalette.schedule)
     }
 
     private data class AgendaItem(
@@ -66,40 +62,8 @@ object AgendaNativeRenderer {
     private data class ContentColors(
         val backgroundColor: Int,
         val primaryTextColor: Int,
-        val secondaryTextColor: Int
-    )
-
-    private data class ItemViewIds(
-        val root: Int,
-        val dateTag: Int,
-        val time: Int,
-        val endTime: Int,
-        val badge: Int,
-        val title: Int,
-        val countdown: Int,
-        val location: Int
-    )
-
-    private val LIGHT_ITEM_IDS = ItemViewIds(
-        root = R.id.item_root_agenda,
-        dateTag = R.id.tv_item_date_tag,
-        time = R.id.tv_item_time,
-        endTime = R.id.tv_item_end_time,
-        badge = R.id.tv_item_badge,
-        title = R.id.tv_item_title,
-        countdown = R.id.tv_item_countdown,
-        location = R.id.tv_item_location
-    )
-
-    private val DARK_ITEM_IDS = ItemViewIds(
-        root = R.id.item_root_agenda_dark,
-        dateTag = R.id.tv_item_date_tag_dark,
-        time = R.id.tv_item_time_dark,
-        endTime = R.id.tv_item_end_time_dark,
-        badge = R.id.tv_item_badge_dark,
-        title = R.id.tv_item_title_dark,
-        countdown = R.id.tv_item_countdown_dark,
-        location = R.id.tv_item_location_dark
+        val secondaryTextColor: Int,
+        val dividerColor: Int
     )
 
     /**
@@ -115,28 +79,16 @@ object AgendaNativeRenderer {
         resetWidgetState(rv)
         bindRootClick(context, rv)
 
-        val lightColors = resolveContentColors(
-            isDark = snapshot.style?.widget_style?.theme_mode == WidgetThemeModeProto.WIDGET_THEME_DARK,
-            seedColorLong = snapshot.style?.widget_style?.seed_color
-        )
-        val darkColors = resolveContentColors(
-            isDark = snapshot.style?.widget_style?.theme_mode != WidgetThemeModeProto.WIDGET_THEME_LIGHT,
-            seedColorLong = snapshot.style?.widget_style?.seed_color
-        )
-        applyWidgetStyle(rv, snapshot, lightColors, darkColors)
-
         val today = LocalDate.now()
-        val weekDays = context.resources.getStringArray(R.array.week_days_names)
-        val weekDayText = weekDays.getOrElse(today.dayOfWeek.value - 1) { "" }
-        val headerText = context.getString(
-            R.string.widget_agenda_header_date,
-            today.monthValue,
-            today.dayOfMonth,
-            weekDayText
-        )
-        rv.setTextViewText(R.id.tv_header_title, headerText)
-        rv.setTextViewText(R.id.tv_header_title_dark, headerText)
+        val widgetStyle = snapshot.style?.widget_style
+        val isDark = resolveWidgetIsDark(context, widgetStyle?.theme_mode)
+        val colors = resolveContentColors(isDark, widgetStyle?.seed_color)
+        val alphaPercent = (widgetStyle?.background_alpha ?: 1.0f).coerceIn(0.0f, 1.0f)
+        val rawScale = widgetStyle?.font_scale ?: 1.0f
+        val scale = if (rawScale > 0f) rawScale else 1.0f
 
+        applyWidgetStyle(rv, isDark, colors, alphaPercent, scale)
+        renderHeader(context, rv, today)
         renderNearestExamCountdown(context, rv, snapshot.agenda_items, today)
 
         val agendaItems = snapshot.agenda_items
@@ -149,7 +101,7 @@ object AgendaNativeRenderer {
         if (agendaItems.isEmpty()) {
             showEmptyState(rv)
         } else {
-            renderAgendaList(context, rv, appWidgetId, snapshot, agendaItems, lightColors, darkColors)
+            renderAgendaList(context, rv, appWidgetId, agendaItems, today, isDark, colors, scale)
         }
 
         return rv
@@ -162,10 +114,6 @@ object AgendaNativeRenderer {
         rv.setViewVisibility(R.id.list_view_agenda, View.VISIBLE)
         rv.setViewVisibility(R.id.container_empty, View.GONE)
         rv.setViewVisibility(R.id.tv_exam_countdown, View.GONE)
-
-        rv.setViewVisibility(R.id.list_view_agenda_dark, View.VISIBLE)
-        rv.setViewVisibility(R.id.container_empty_dark, View.GONE)
-        rv.setViewVisibility(R.id.tv_exam_countdown_dark, View.GONE)
     }
 
     /**
@@ -182,7 +130,18 @@ object AgendaNativeRenderer {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         rv.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-        rv.setOnClickPendingIntent(R.id.widget_root_dark, pendingIntent)
+    }
+
+    private fun renderHeader(context: Context, rv: RemoteViews, today: LocalDate) {
+        val weekDays = context.resources.getStringArray(R.array.week_days_names)
+        val weekDayText = weekDays.getOrElse(today.dayOfWeek.value - 1) { "" }
+        val headerText = context.getString(
+            R.string.widget_agenda_header_date,
+            today.monthValue,
+            today.dayOfMonth,
+            weekDayText
+        )
+        rv.setTextViewText(R.id.tv_header_title, headerText)
     }
 
     /**
@@ -203,9 +162,6 @@ object AgendaNativeRenderer {
 
         rv.setViewVisibility(R.id.tv_exam_countdown, View.VISIBLE)
         rv.setTextViewText(R.id.tv_exam_countdown, text)
-
-        rv.setViewVisibility(R.id.tv_exam_countdown_dark, View.VISIBLE)
-        rv.setTextViewText(R.id.tv_exam_countdown_dark, text)
     }
 
     /**
@@ -262,24 +218,22 @@ object AgendaNativeRenderer {
         context: Context,
         rv: RemoteViews,
         appWidgetId: Int,
-        snapshot: WidgetSnapshot,
         items: List<AgendaItem>,
-        lightColors: ContentColors,
-        darkColors: ContentColors
+        today: LocalDate,
+        isDark: Boolean,
+        colors: ContentColors,
+        scale: Float
     ) {
         rv.setViewVisibility(R.id.list_view_agenda, View.VISIBLE)
         rv.setViewVisibility(R.id.container_empty, View.GONE)
-        rv.setViewVisibility(R.id.list_view_agenda_dark, View.VISIBLE)
-        rv.setViewVisibility(R.id.container_empty_dark, View.GONE)
 
         val builder = RemoteViewsCompat.RemoteCollectionItems.Builder()
 
         items.forEachIndexed { index, item ->
-            val itemRv = createAgendaItemView(context, snapshot, item, lightColors, darkColors)
+            val itemRv = createAgendaItemView(context, today, item, isDark, colors, scale)
 
             val fillInIntent = Intent().apply { putExtra("agenda_id", item.id) }
-            itemRv.setOnClickFillInIntent(LIGHT_ITEM_IDS.root, fillInIntent)
-            itemRv.setOnClickFillInIntent(DARK_ITEM_IDS.root, fillInIntent)
+            itemRv.setOnClickFillInIntent(R.id.item_root_agenda, fillInIntent)
 
             val itemId = "${item.id}#$index".hashCode().toLong() and 0x7FFFFFFFFFL
             builder.addItem(itemId, itemRv)
@@ -288,8 +242,13 @@ object AgendaNativeRenderer {
         builder.setHasStableIds(true)
         val collectionItems = builder.build()
 
-        RemoteViewsCompat.setRemoteAdapter(context, rv, appWidgetId, R.id.list_view_agenda, collectionItems)
-        RemoteViewsCompat.setRemoteAdapter(context, rv, appWidgetId, R.id.list_view_agenda_dark, collectionItems)
+        RemoteViewsCompat.setRemoteAdapter(
+            context,
+            rv,
+            appWidgetId,
+            R.id.list_view_agenda,
+            collectionItems
+        )
 
         val clickIntentTemplate = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -301,103 +260,73 @@ object AgendaNativeRenderer {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
         rv.setPendingIntentTemplate(R.id.list_view_agenda, pendingIntentTemplate)
-        rv.setPendingIntentTemplate(R.id.list_view_agenda_dark, pendingIntentTemplate)
     }
 
     /**
-     * 创建单条日程节点视图（同时绑定常规与暗色两套 View 树）
+     * 创建单条日程节点视图
      */
     private fun createAgendaItemView(
         context: Context,
-        snapshot: WidgetSnapshot,
+        today: LocalDate,
         item: AgendaItem,
-        lightColors: ContentColors,
-        darkColors: ContentColors
+        isDark: Boolean,
+        colors: ContentColors,
+        scale: Float
     ): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.widget_item_agenda_node)
 
-        val rawScale = snapshot.style?.widget_style?.font_scale ?: 1.0f
-        val scale = if (rawScale > 0f) rawScale else 1.0f
+        val accent = item.kind.accent
+        val accentTextColor = accent.textColor(isDark)
+        val accentBackgroundRes = accent.backgroundRes(isDark)
         val badgeText = context.getString(item.kind.badgeTextRes)
-        val timeText = item.startTime.trim().ifBlank { context.getString(R.string.widget_agenda_all_day) }
-        val endTimeText = item.endTime.trim()
-        val locationText = item.location.trim().let { location ->
-            if (location.isBlank()) "" else "📍 $location"
+
+        val dateTag = if (item.date == today) {
+            context.getString(R.string.widget_title_today)
+        } else {
+            item.date.format(DATE_FORMATTER)
         }
-        val dateTag = item.date.format(DATE_FORMATTER)
+        val timeText = item.startTime.trim().ifBlank { context.getString(R.string.widget_agenda_all_day) }
+        val locationText = item.location.trim()
         val countdownText = if (item.daysLeft <= 0) {
             context.getString(R.string.widget_title_today)
         } else {
             context.getString(R.string.widget_agenda_days_left, item.daysLeft)
         }
 
-        bindItemGroup(
-            rv, LIGHT_ITEM_IDS, lightColors, item.kind, item.title, badgeText,
-            dateTag, timeText, endTimeText, countdownText, locationText, scale
-        )
-        bindItemGroup(
-            rv, DARK_ITEM_IDS, darkColors, item.kind, item.title, badgeText,
-            dateTag, timeText, endTimeText, countdownText, locationText, scale
-        )
+        rv.setTextViewText(R.id.tv_item_date_tag, dateTag)
+        rv.setTextColor(R.id.tv_item_date_tag, colors.secondaryTextColor)
+        rv.setTextViewTextSize(R.id.tv_item_date_tag, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
+
+        rv.setTextViewText(R.id.tv_item_time, timeText)
+        rv.setTextColor(R.id.tv_item_time, colors.primaryTextColor)
+        rv.setTextViewTextSize(R.id.tv_item_time, TypedValue.COMPLEX_UNIT_DIP, 11.5f * scale)
+
+        rv.setInt(R.id.divider_vertical, "setBackgroundColor", colors.dividerColor)
+
+        rv.setTextViewText(R.id.tv_item_badge, badgeText)
+        rv.setTextColor(R.id.tv_item_badge, accentTextColor)
+        rv.setTextViewTextSize(R.id.tv_item_badge, TypedValue.COMPLEX_UNIT_DIP, 9f * scale)
+        rv.setInt(R.id.tv_item_badge, "setBackgroundResource", accentBackgroundRes)
+
+        rv.setTextViewText(R.id.tv_item_title, item.title)
+        rv.setTextColor(R.id.tv_item_title, colors.primaryTextColor)
+        rv.setTextViewTextSize(R.id.tv_item_title, TypedValue.COMPLEX_UNIT_DIP, 13.5f * scale)
+
+        rv.setTextViewText(R.id.tv_item_countdown, countdownText)
+        rv.setTextColor(R.id.tv_item_countdown, accentTextColor)
+        rv.setTextViewTextSize(R.id.tv_item_countdown, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
+        rv.setInt(R.id.tv_item_countdown, "setBackgroundResource", accentBackgroundRes)
+
+        if (locationText.isBlank()) {
+            rv.setViewVisibility(R.id.tv_item_location, View.GONE)
+        } else {
+            rv.setViewVisibility(R.id.tv_item_location, View.VISIBLE)
+            rv.setTextViewText(R.id.tv_item_location, locationText)
+            rv.setTextColor(R.id.tv_item_location, colors.secondaryTextColor)
+            rv.setTextViewTextSize(R.id.tv_item_location, TypedValue.COMPLEX_UNIT_DIP, 11f * scale)
+        }
 
         return rv
-    }
-
-    /**
-     * 绑定一整套日程条目视图的文本、颜色与可见性
-     */
-    private fun bindItemGroup(
-        rv: RemoteViews,
-        ids: ItemViewIds,
-        colors: ContentColors,
-        kind: AgendaKind,
-        title: String,
-        badgeText: String,
-        dateTag: String,
-        timeText: String,
-        endTimeText: String,
-        countdownText: String,
-        locationText: String,
-        scale: Float
-    ) {
-        rv.setTextViewText(ids.dateTag, dateTag)
-        rv.setTextColor(ids.dateTag, colors.secondaryTextColor)
-        rv.setTextViewTextSize(ids.dateTag, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
-
-        rv.setTextViewText(ids.time, timeText)
-        rv.setTextColor(ids.time, colors.primaryTextColor)
-        rv.setTextViewTextSize(ids.time, TypedValue.COMPLEX_UNIT_DIP, 10.5f * scale)
-
-        if (endTimeText.isNotBlank()) {
-            rv.setViewVisibility(ids.endTime, View.VISIBLE)
-            rv.setTextViewText(ids.endTime, endTimeText)
-            rv.setTextColor(ids.endTime, colors.secondaryTextColor)
-            rv.setTextViewTextSize(ids.endTime, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
-        } else {
-            rv.setViewVisibility(ids.endTime, View.GONE)
-        }
-
-        rv.setTextViewText(ids.badge, badgeText)
-        rv.setTextColor(ids.badge, kind.badgeTextColor)
-        rv.setTextViewTextSize(ids.badge, TypedValue.COMPLEX_UNIT_DIP, 8f * scale)
-        rv.setInt(ids.badge, "setBackgroundResource", kind.badgeBackgroundRes)
-
-        rv.setTextViewText(ids.title, title)
-        rv.setTextColor(ids.title, colors.primaryTextColor)
-        rv.setTextViewTextSize(ids.title, TypedValue.COMPLEX_UNIT_DIP, 12.5f * scale)
-
-        rv.setTextViewText(ids.countdown, countdownText)
-        rv.setTextColor(ids.countdown, kind.badgeTextColor)
-        rv.setTextViewTextSize(ids.countdown, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
-
-        if (locationText.isNotBlank()) {
-            rv.setViewVisibility(ids.location, View.VISIBLE)
-            rv.setTextViewText(ids.location, locationText)
-            rv.setTextColor(ids.location, colors.secondaryTextColor)
-            rv.setTextViewTextSize(ids.location, TypedValue.COMPLEX_UNIT_DIP, 9.5f * scale)
-        } else {
-            rv.setViewVisibility(ids.location, View.GONE)
-        }
     }
 
     /**
@@ -406,8 +335,6 @@ object AgendaNativeRenderer {
     private fun showEmptyState(rv: RemoteViews) {
         rv.setViewVisibility(R.id.list_view_agenda, View.GONE)
         rv.setViewVisibility(R.id.container_empty, View.VISIBLE)
-        rv.setViewVisibility(R.id.list_view_agenda_dark, View.GONE)
-        rv.setViewVisibility(R.id.container_empty_dark, View.VISIBLE)
     }
 
     /**
@@ -415,58 +342,29 @@ object AgendaNativeRenderer {
      */
     private fun applyWidgetStyle(
         rv: RemoteViews,
-        snapshot: WidgetSnapshot,
-        lightColors: ContentColors,
-        darkColors: ContentColors
-    ) {
-        val widgetStyle = snapshot.style?.widget_style
-        val alphaPercent: Float = widgetStyle?.background_alpha ?: 1.0f
-        val fontScale: Float = widgetStyle?.font_scale ?: 1.0f
-        val scale = if (fontScale > 0f) fontScale else 1.0f
-
-        applyGroupStyle(
-            rv, lightColors, alphaPercent, scale,
-            R.id.card_bg_image, R.id.tv_header_title, R.id.tv_exam_countdown,
-            R.id.tv_empty_icon, R.id.tv_empty_title, R.id.tv_empty_hint
-        )
-        applyGroupStyle(
-            rv, darkColors, alphaPercent, scale,
-            R.id.card_bg_image_dark, R.id.tv_header_title_dark, R.id.tv_exam_countdown_dark,
-            R.id.tv_empty_icon_dark, R.id.tv_empty_title_dark, R.id.tv_empty_hint_dark
-        )
-    }
-
-    /**
-     * 设置一组视图的背景色、文字颜色与字体缩放
-     */
-    private fun applyGroupStyle(
-        rv: RemoteViews,
+        isDark: Boolean,
         colors: ContentColors,
         alphaPercent: Float,
-        scale: Float,
-        cardBgId: Int,
-        headerTitleId: Int,
-        examCountdownId: Int,
-        emptyIconId: Int,
-        emptyTitleId: Int,
-        emptyHintId: Int
+        scale: Float
     ) {
-        rv.setImageViewBackground(cardBgId, colors.backgroundColor, alphaPercent)
+        rv.setImageViewBackground(R.id.card_bg_image, colors.backgroundColor, alphaPercent)
 
-        rv.setTextColor(headerTitleId, colors.primaryTextColor)
-        rv.setTextViewTextSize(headerTitleId, TypedValue.COMPLEX_UNIT_DIP, 15f * scale)
+        rv.setTextColor(R.id.tv_header_title, colors.primaryTextColor)
+        rv.setTextViewTextSize(R.id.tv_header_title, TypedValue.COMPLEX_UNIT_DIP, 15f * scale)
 
-        rv.setTextColor(examCountdownId, COLOR_EXAM)
-        rv.setTextViewTextSize(examCountdownId, TypedValue.COMPLEX_UNIT_DIP, 10f * scale)
+        rv.setInt(
+            R.id.tv_exam_countdown,
+            "setBackgroundResource",
+            AgendaPalette.pillBackgroundRes(isDark)
+        )
+        rv.setTextColor(R.id.tv_exam_countdown, AgendaPalette.exam.textColor(isDark))
+        rv.setTextViewTextSize(R.id.tv_exam_countdown, TypedValue.COMPLEX_UNIT_DIP, 10f * scale)
 
-        rv.setTextColor(emptyIconId, colors.secondaryTextColor)
-        rv.setTextViewTextSize(emptyIconId, TypedValue.COMPLEX_UNIT_DIP, 24f * scale)
+        rv.setTextColor(R.id.tv_empty_title, colors.primaryTextColor)
+        rv.setTextViewTextSize(R.id.tv_empty_title, TypedValue.COMPLEX_UNIT_DIP, 13f * scale)
 
-        rv.setTextColor(emptyTitleId, colors.primaryTextColor)
-        rv.setTextViewTextSize(emptyTitleId, TypedValue.COMPLEX_UNIT_DIP, 14f * scale)
-
-        rv.setTextColor(emptyHintId, colors.secondaryTextColor)
-        rv.setTextViewTextSize(emptyHintId, TypedValue.COMPLEX_UNIT_DIP, 10f * scale)
+        rv.setTextColor(R.id.tv_empty_hint, colors.secondaryTextColor)
+        rv.setTextViewTextSize(R.id.tv_empty_hint, TypedValue.COMPLEX_UNIT_DIP, 10f * scale)
     }
 
     /**
@@ -483,14 +381,16 @@ object AgendaNativeRenderer {
             ContentColors(
                 backgroundColor = scheme.surfaceContainer.toArgb(),
                 primaryTextColor = scheme.onSurface.toArgb(),
-                secondaryTextColor = scheme.onSurfaceVariant.toArgb()
+                secondaryTextColor = scheme.onSurfaceVariant.toArgb(),
+                dividerColor = scheme.outlineVariant.copy(alpha = 0.55f).toArgb()
             )
         } else {
-            val contentColor = scheme.onPrimaryContainer.toArgb()
+            val contentColor = scheme.onPrimaryContainer
             ContentColors(
                 backgroundColor = scheme.primaryContainer.toArgb(),
-                primaryTextColor = contentColor,
-                secondaryTextColor = contentColor
+                primaryTextColor = contentColor.toArgb(),
+                secondaryTextColor = contentColor.copy(alpha = 0.72f).toArgb(),
+                dividerColor = contentColor.copy(alpha = 0.18f).toArgb()
             )
         }
     }

@@ -5,14 +5,14 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
-    android:minHeight="46dp"
+    android:minHeight="50dp"
     android:orientation="horizontal"
     android:paddingHorizontal="4dp"
-    android:paddingVertical="5dp">
+    android:paddingVertical="6dp">
 
-    <!-- 时间区域：日期标签 + 起止时间 -->
+    <!-- 左侧时间列：日期 + 时间两行 -->
     <LinearLayout
-        android:layout_width="46dp"
+        android:layout_width="44dp"
         android:layout_height="wrap_content"
         android:gravity="center_horizontal"
         android:orientation="vertical">
@@ -23,8 +23,8 @@
             android:layout_height="wrap_content"
             android:includeFontPadding="false"
             android:textColor="@color/widget_text_hint"
-            android:textSize="8dp"
-            tools:text="今天" />
+            android:textSize="8.5dp"
+            tools:text="11.11" />
 
         <TextView
             android:id="@+id/tv_item_time"
@@ -33,28 +33,19 @@
             android:layout_marginTop="1dp"
             android:includeFontPadding="false"
             android:textColor="@color/widget_text_primary"
-            android:textSize="10.5dp"
+            android:textSize="11.5dp"
             android:textStyle="bold"
-            tools:text="09:00" />
-
-        <TextView
-            android:id="@+id/tv_item_end_time"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:includeFontPadding="false"
-            android:textColor="@color/widget_text_secondary"
-            android:textSize="8.5dp"
-            tools:text="10:30" />
+            tools:text="14:30" />
     </LinearLayout>
 
-    <ImageView
+    <View
         android:id="@+id/divider_vertical"
         android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:layout_marginHorizontal="7dp"
+        android:layout_height="30dp"
+        android:layout_marginHorizontal="8dp"
         android:background="@color/widget_divider" />
 
-    <!-- 内容区域：分类徽章 + 标题 + 地点 -->
+    <!-- 中间内容区：徽章 + 标题 / 地点详情 -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -74,9 +65,9 @@
                 android:background="@drawable/widget_agenda_badge_todo"
                 android:includeFontPadding="false"
                 android:paddingHorizontal="5dp"
-                android:paddingVertical="1dp"
-                android:textColor="#1A73E8"
-                android:textSize="8dp"
+                android:paddingVertical="1.5dp"
+                android:textColor="#5C6B8A"
+                android:textSize="9dp"
                 android:textStyle="bold"
                 tools:text="待办" />
 
@@ -90,32 +81,36 @@
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:textColor="@color/widget_text_primary"
-                android:textSize="12.5dp"
+                android:textSize="13.5dp"
                 android:textStyle="bold"
                 tools:text="交微积分作业" />
-
-            <TextView
-                android:id="@+id/tv_item_countdown"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:includeFontPadding="false"
-                android:textColor="#E5484D"
-                android:textSize="8.5dp"
-                android:textStyle="bold"
-                tools:text="还有16天" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/tv_item_location"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="3dp"
             android:ellipsize="end"
             android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/widget_text_secondary"
-            android:textSize="9.5dp"
-            tools:text="📍 教一 302" />
+            android:textSize="11dp"
+            tools:text="教 2-302" />
     </LinearLayout>
+
+    <!-- 右侧状态列：统一低饱和胶囊 -->
+    <TextView
+        android:id="@+id/tv_item_countdown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/widget_agenda_badge_exam"
+        android:includeFontPadding="false"
+        android:paddingHorizontal="7dp"
+        android:paddingVertical="3dp"
+        android:textColor="#C05B56"
+        android:textSize="9.5dp"
+        android:textStyle="bold"
+        tools:text="还有16天" />
 </LinearLayout>

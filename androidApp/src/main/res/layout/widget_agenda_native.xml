@@ -22,17 +22,21 @@
         android:paddingVertical="10dp">
 
         <!-- 顶部：日期星期 + 最近考试倒计时 -->
-        <RelativeLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/tv_header_title"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
+                android:layout_weight="1"
+                android:ellipsize="end"
                 android:includeFontPadding="false"
+                android:maxLines="1"
                 android:textColor="@color/widget_text_primary"
                 android:textSize="15dp"
                 android:textStyle="bold"
@@ -42,19 +46,18 @@
                 android:id="@+id/tv_exam_countdown"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
+                android:layout_marginStart="8dp"
                 android:background="@drawable/widget_agenda_pill_bg"
                 android:includeFontPadding="false"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                android:textColor="#E5484D"
+                android:textColor="#C05B56"
                 android:textSize="10dp"
                 android:textStyle="bold"
                 android:visibility="gone"
-                tools:text="⏳ 还有16天"
+                tools:text="还有16天"
                 tools:visibility="visible" />
-        </RelativeLayout>
+        </LinearLayout>
 
         <!-- 主体：日程列表与空状态 -->
         <FrameLayout
@@ -80,32 +83,30 @@
                 android:gravity="center"
                 android:orientation="vertical"
                 android:visibility="gone"
-                tools:visibility="gone">
+                tools:visibility="visible">
 
-                <TextView
-                    android:id="@+id/tv_empty_icon"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="🗓️"
-                    android:textSize="24dp" />
+                <View
+                    android:layout_width="20dp"
+                    android:layout_height="2dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/widget_agenda_empty_accent" />
 
                 <TextView
                     android:id="@+id/tv_empty_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
                     android:includeFontPadding="false"
+                    android:letterSpacing="0.04"
                     android:text="@string/widget_agenda_empty_title"
                     android:textColor="@color/widget_text_primary"
-                    android:textSize="14dp"
+                    android:textSize="13dp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tv_empty_hint"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
+                    android:layout_marginTop="3dp"
                     android:includeFontPadding="false"
                     android:text="@string/widget_agenda_empty_hint"
                     android:textColor="@color/widget_text_secondary"
