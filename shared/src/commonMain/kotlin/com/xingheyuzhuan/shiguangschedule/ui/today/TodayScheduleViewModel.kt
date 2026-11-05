@@ -160,6 +160,15 @@ class TodayScheduleViewModel(
     }
 
     /**
+     * 更新一个已有的日程事件。
+     */
+    fun updateEvent(event: ScheduleEvent) {
+        viewModelScope.launch {
+            scheduleEventRepository.updateEvent(event)
+        }
+    }
+
+    /**
      * 批量添加日程事件，自动补全当前课表 ID。
      */
     fun batchAddEvents(events: List<ScheduleEvent>) {

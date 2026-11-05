@@ -2,9 +2,13 @@ package com.xingheyuzhuan.shiguangschedule.tool
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -14,7 +18,6 @@ import kotlinx.serialization.json.Json
 import org.koin.core.annotation.Single
 
 enum class UpdatePlatform(val title: String) {
-    GITEE("Gitee 镜像 (推荐)"),
     GITHUB("GitHub 官方")
 }
 
@@ -62,7 +65,23 @@ class UpdateChecker(
 ) {
     companion object {
         private const val GITHUB_REPO = "zzemy/shiguangschedule"
-        private const val GITEE_REPO = "XingHeYuZhuan-gh/shiguangschedule"
+        private const val USER_AGENT = "ShiguangNjupt-Android"
+
+        private val GITHUB_API_URL =
+            "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
+
+        /** 直连与代理镜像按顺序尝试，直连失败时自动切换。 */
+        private val GITHUB_ENDPOINTS = listOf(
+            GitHubEndpoint(apiUrl = GITHUB_API_URL, proxyPrefix = null),
+            GitHubEndpoint(
+                apiUrl = "https://mirror.ghproxy.com/$GITHUB_API_URL",
+                proxyPrefix = "https://mirror.ghproxy.com/"
+            ),
+            GitHubEndpoint(
+                apiUrl = "https://ghfast.top/$GITHUB_API_URL",
+                proxyPrefix = "https://ghfast.top/"
+            )
+        )
 
         val defaultHttpClient by lazy {
             HttpClient {
@@ -72,6 +91,28 @@ class UpdateChecker(
                         coerceInputValues = true
                     })
                 }
+                install(HttpTimeout) {
+                    requestTimeoutMillis = 15_000
+                    connectTimeoutMillis = 10_000
+                    socketTimeoutMillis = 15_000
+                }
+            }
+        }
+    }
+
+    private data class GitHubEndpoint(
+        val apiUrl: String,
+        val proxyPrefix: String?
+    ) {
+        /** 镜像响应中的下载地址仍指向 GitHub，下载时同样走镜像。 */
+        fun proxy(url: String): String {
+            if (proxyPrefix == null) return url
+            return if (url.startsWith("https://github.com/") ||
+                url.startsWith("https://api.github.com/")
+            ) {
+                "$proxyPrefix$url"
+            } else {
+                url
             }
         }
     }
@@ -84,48 +125,76 @@ class UpdateChecker(
             return@withContext UpdateStatus.NotSupported
         }
 
-        try {
-            val apiUrl = when (platform) {
-                UpdatePlatform.GITHUB -> "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
-                UpdatePlatform.GITEE -> "https://gitee.com/api/v5/repos/$GITEE_REPO/releases/latest"
-            }
+        val endpoints = when (platform) {
+            UpdatePlatform.GITHUB -> GITHUB_ENDPOINTS
+        }
 
-            val response = httpClient.get(apiUrl).body<ApiReleaseResponse>()
-
-            if (response.tagName.isBlank()) {
-                return@withContext UpdateStatus.Error("远程数据异常，请更换仓库重试")
-            }
-
-            val latestVersion = response.tagName.removePrefix("v").removePrefix("V").trim()
-            val currentVersion = currentVersionName.removePrefix("v").removePrefix("V").trim()
-
-            if (!isNewerVersion(latestVersion, currentVersion)) {
-                return@withContext UpdateStatus.Latest(currentVersionName)
-            }
-
-            val downloadUrl = PlatformUpdateStrategy.parseTargetUrl(response)
-
-            val (targetUrl, isDirectDownload) = if (!downloadUrl.isNullOrEmpty()) {
-                Pair(downloadUrl, true)
-            } else if (response.tagName.isNotEmpty()) {
-                val fallbackTagUrl = when (platform) {
-                    UpdatePlatform.GITHUB -> "https://github.com/$GITHUB_REPO/releases/tag/${response.tagName}"
-                    UpdatePlatform.GITEE -> "https://gitee.com/$GITEE_REPO/releases/tag/${response.tagName}"
+        var lastFailure: Exception? = null
+        for (endpoint in endpoints) {
+            try {
+                val response = fetchLatestRelease(endpoint.apiUrl)
+                if (response.tagName.isBlank()) {
+                    lastFailure = IllegalStateException("更新响应缺少版本号")
+                    continue
                 }
-                Pair(fallbackTagUrl, false)
-            } else {
-                return@withContext UpdateStatus.Error("远程数据异常，请更换仓库重试")
+
+                val latestVersion = response.tagName.removePrefix("v").removePrefix("V").trim()
+                val currentVersion = currentVersionName.removePrefix("v").removePrefix("V").trim()
+
+                if (!isNewerVersion(latestVersion, currentVersion)) {
+                    return@withContext UpdateStatus.Latest(currentVersionName)
+                }
+
+                val directDownloadUrl = PlatformUpdateStrategy.parseTargetUrl(response)
+                val releaseTagUrl =
+                    "https://github.com/$GITHUB_REPO/releases/tag/${response.tagName}"
+
+                val (targetUrl, isDirectDownload) = if (!directDownloadUrl.isNullOrEmpty()) {
+                    Pair(endpoint.proxy(directDownloadUrl), true)
+                } else {
+                    Pair(endpoint.proxy(releaseTagUrl), false)
+                }
+
+                return@withContext UpdateStatus.Found(
+                    versionName = response.tagName,
+                    changelog = response.body,
+                    targetUrl = targetUrl,
+                    isDirectDownload = isDirectDownload
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastFailure = e
             }
+        }
 
-            UpdateStatus.Found(
-                versionName = response.tagName,
-                changelog = response.body,
-                targetUrl = targetUrl,
-                isDirectDownload = isDirectDownload
-            )
+        UpdateStatus.Error(friendlyFailureMessage(lastFailure))
+    }
 
-        } catch (_: Exception) {
-            UpdateStatus.Error("远程数据异常，请更换仓库重试")
+    private suspend fun fetchLatestRelease(apiUrl: String): ApiReleaseResponse {
+        val response = httpClient.get(apiUrl) {
+            header(HttpHeaders.UserAgent, USER_AGENT)
+            header(HttpHeaders.Accept, "application/vnd.github+json")
+        }
+        if (response.status.value !in 200..299) {
+            throw IllegalStateException("HTTP ${response.status.value}")
+        }
+        return response.body()
+    }
+
+    private fun friendlyFailureMessage(error: Exception?): String {
+        val detail = error?.message.orEmpty()
+        return when {
+            error is io.ktor.client.plugins.HttpRequestTimeoutException ||
+                detail.contains("timeout", ignoreCase = true) ||
+                detail.contains("timed out", ignoreCase = true) ->
+                "网络连接超时，请检查网络后重试"
+
+            detail.contains("403") || detail.contains("401") ->
+                "GitHub 访问受限，请稍后重试"
+
+            else ->
+                "无法连接更新服务器，已尝试 GitHub 直连与镜像，请检查网络后重试"
         }
     }
 

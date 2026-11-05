@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -81,6 +82,7 @@ import com.xingheyuzhuan.shiguangschedule.data.api.exam.ExamImportItem
 import com.xingheyuzhuan.shiguangschedule.data.api.exam.IcsExamParser
 import com.xingheyuzhuan.shiguangschedule.data.db.main.ScheduleEvent
 import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
+import com.xingheyuzhuan.shiguangschedule.data.nlp.SmartScheduleParser
 import com.xingheyuzhuan.shiguangschedule.tool.FileManagerCallbacks
 import com.xingheyuzhuan.shiguangschedule.tool.rememberFileManager
 import com.xingheyuzhuan.shiguangschedule.ui.components.ToastManager
@@ -130,6 +132,7 @@ private const val DEFAULT_TIME_ZERO = "00:00"
 private const val EMPTY_TIME_PLACEHOLDER = "--:--"
 private const val DEFAULT_DAYS_ZERO = "0"
 private const val DEFAULT_OVERDUE_DAYS = 1
+private const val TIMELINE_TIME_SORT_KEY = "99:99"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,6 +149,7 @@ fun TodayScheduleScreen(
     val scope = rememberCoroutineScope()
 
     var showAddSheet by remember { mutableStateOf(false) }
+    var editingEvent by remember { mutableStateOf<ScheduleEvent?>(null) }
     var showNjuptExamSyncSheet by remember { mutableStateOf(false) }
     var icsPreviewExams by remember { mutableStateOf<List<ExamImportItem>?>(null) }
 
@@ -210,7 +214,8 @@ fun TodayScheduleScreen(
                         gridStyle = gridStyle,
                         isDark = isDark,
                         onToggleEvent = { viewModel.toggleEventCompleted(it) },
-                        onDeleteEvent = { viewModel.deleteEvent(it) }
+                        onDeleteEvent = { viewModel.deleteEvent(it) },
+                        onEditEvent = { editingEvent = it }
                     )
                 }
             }
@@ -233,6 +238,25 @@ fun TodayScheduleScreen(
             onConfirm = { title, type, date, startTime, endTime, location, detail ->
                 viewModel.addEvent(title, type, date, startTime, endTime, location, detail)
                 showAddSheet = false
+            }
+        )
+    }
+
+    editingEvent?.let { event ->
+        AddScheduleEventBottomSheet(
+            defaultDate = defaultDate,
+            initialEvent = event,
+            onDismiss = { editingEvent = null },
+            onOpenNjuptSync = {},
+            onImportIcs = {},
+            onConfirm = { _, _, _, _, _, _, _ -> },
+            onUpdate = { updated ->
+                viewModel.updateEvent(updated)
+                editingEvent = null
+            },
+            onDelete = { target ->
+                viewModel.deleteEvent(target)
+                editingEvent = null
             }
         )
     }
@@ -273,6 +297,21 @@ fun TodayScheduleScreen(
     }
 }
 
+private sealed interface TodayTimelineEntry {
+    val startTime: String?
+    val endTime: String?
+
+    data class CourseEntry(val model: CourseDisplayModel) : TodayTimelineEntry {
+        override val startTime: String? get() = model.startTime
+        override val endTime: String? get() = model.endTime
+    }
+
+    data class EventEntry(val event: ScheduleEvent) : TodayTimelineEntry {
+        override val startTime: String? get() = event.startTime
+        override val endTime: String? get() = event.endTime
+    }
+}
+
 @Composable
 fun TodayContent(
     state: TodayUiState.Success,
@@ -280,39 +319,61 @@ fun TodayContent(
     isDark: Boolean,
     onToggleEvent: (ScheduleEvent) -> Unit,
     onDeleteEvent: (ScheduleEvent) -> Unit,
+    onEditEvent: (ScheduleEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currentTime = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).time }
 
-    val targetScrollIndex = remember(state.courses, currentTime) {
-        val firstActiveIndex = state.courses.indexOfFirst { model ->
+    val todayIso = state.today.toString()
+    val futureExams = remember(state.upcomingExams, todayIso) {
+        state.upcomingExams.filter { it.type == "EXAM" && it.date > todayIso }
+    }
+    val allDayEvents = remember(state.events) {
+        state.events.filter { it.startTime.isNullOrBlank() }
+    }
+    val timelineEntries = remember(state.courses, state.events) {
+        buildList<TodayTimelineEntry> {
+            state.courses.forEach { add(TodayTimelineEntry.CourseEntry(it)) }
+            state.events.forEach { event ->
+                if (!event.startTime.isNullOrBlank()) {
+                    add(TodayTimelineEntry.EventEntry(event))
+                }
+            }
+        }.sortedWith(
+            compareBy<TodayTimelineEntry> { it.startTime ?: TIMELINE_TIME_SORT_KEY }
+                .thenBy { it.endTime ?: TIMELINE_TIME_SORT_KEY }
+        )
+    }
+
+    val targetTimelineIndex = remember(timelineEntries, currentTime) {
+        val firstActiveIndex = timelineEntries.indexOfFirst { entry ->
             try {
-                LocalTime.parse(model.endTime ?: DEFAULT_TIME_ZERO) >= currentTime
+                LocalTime.parse(entry.endTime ?: DEFAULT_TIME_ZERO) >= currentTime
             } catch (e: Exception) {
                 true
             }
         }
 
         if (firstActiveIndex == -1) {
-            (state.courses.size - 1).coerceAtLeast(0)
+            (timelineEntries.size - 1).coerceAtLeast(0)
         } else {
             firstActiveIndex
         }
     }
 
     val initialFirstVisibleItemIndex = remember(
-        targetScrollIndex,
-        state.courses.size,
-        state.events.size,
-        state.upcomingExams.size
+        targetTimelineIndex,
+        timelineEntries.size,
+        futureExams.size,
+        allDayEvents.size
     ) {
-        if (state.courses.isEmpty()) {
+        if (timelineEntries.isEmpty()) {
             0
         } else {
-            val examItemCount = if (state.upcomingExams.isNotEmpty()) 1 else 0
-            val eventItemCount = if (state.events.isNotEmpty()) 1 + state.events.size else 0
-            val courseHeaderCount = if (state.events.isNotEmpty()) 1 else 0
-            examItemCount + eventItemCount + courseHeaderCount + targetScrollIndex
+            val examItemCount = if (futureExams.isNotEmpty()) 1 else 0
+            val allDayItemCount = if (allDayEvents.isNotEmpty()) 1 else 0
+            val headerCount = 1
+            examItemCount + allDayItemCount + headerCount + targetTimelineIndex
         }
     }
 
@@ -374,9 +435,9 @@ fun TodayContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        val hasContent = state.upcomingExams.isNotEmpty() ||
-            state.events.isNotEmpty() ||
-            state.courses.isNotEmpty()
+        val hasContent = futureExams.isNotEmpty() ||
+            allDayEvents.isNotEmpty() ||
+            timelineEntries.isNotEmpty()
 
         if (!hasContent) {
             EmptyStateView()
@@ -389,48 +450,50 @@ fun TodayContent(
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (state.upcomingExams.isNotEmpty()) {
+                if (futureExams.isNotEmpty()) {
                     item {
                         UpcomingExamsSection(
                             today = state.today,
-                            exams = state.upcomingExams,
+                            exams = futureExams,
+                            onEdit = onEditEvent,
                             onDelete = onDeleteEvent
                         )
                     }
                 }
 
-                if (state.events.isNotEmpty()) {
+                if (allDayEvents.isNotEmpty()) {
+                    item {
+                        AllDayEventsSection(
+                            events = allDayEvents,
+                            onToggle = onToggleEvent,
+                            onEdit = onEditEvent
+                        )
+                    }
+                }
+
+                if (timelineEntries.isNotEmpty()) {
                     item {
                         Text(
-                            text = "📌 今日日程与待办",
+                            text = "🕒 今日时间线",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    itemsIndexed(state.events) { _, event ->
-                        ScheduleEventItem(
-                            event = event,
-                            onToggle = { onToggleEvent(event) },
-                            onDelete = { onDeleteEvent(event) }
-                        )
-                    }
-                }
+                    itemsIndexed(timelineEntries) { _, entry ->
+                        when (entry) {
+                            is TodayTimelineEntry.CourseEntry -> {
+                                CourseTimelineItem(entry.model, gridStyle, isDark)
+                            }
 
-                if (state.courses.isNotEmpty()) {
-                    if (state.events.isNotEmpty()) {
-                        item {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "📚 今日课程",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            is TodayTimelineEntry.EventEntry -> {
+                                ScheduleEventTimelineItem(
+                                    event = entry.event,
+                                    onToggle = { onToggleEvent(entry.event) },
+                                    onEdit = { onEditEvent(entry.event) }
+                                )
+                            }
                         }
-                    }
-                    itemsIndexed(state.courses) { _, model ->
-                        CourseTimelineItem(model, gridStyle, isDark)
                     }
                 }
 
@@ -438,6 +501,32 @@ fun TodayContent(
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AllDayEventsSection(
+    events: List<ScheduleEvent>,
+    onToggle: (ScheduleEvent) -> Unit,
+    onEdit: (ScheduleEvent) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "📌 全天事项",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        events.forEach { event ->
+            ScheduleEventItem(
+                event = event,
+                onToggle = { onToggle(event) },
+                onEdit = { onEdit(event) }
+            )
         }
     }
 }
@@ -596,6 +685,7 @@ private fun EmptyStateView() {
 fun UpcomingExamsSection(
     today: LocalDate,
     exams: List<ScheduleEvent>,
+    onEdit: (ScheduleEvent) -> Unit,
     onDelete: (ScheduleEvent) -> Unit
 ) {
     Column(
@@ -623,6 +713,7 @@ fun UpcomingExamsSection(
             }
 
             Card(
+                onClick = { onEdit(exam) },
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
                     contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -684,7 +775,7 @@ fun UpcomingExamsSection(
 fun ScheduleEventItem(
     event: ScheduleEvent,
     onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onEdit: () -> Unit
 ) {
     val isDaily = event.type == "DAILY"
     val isExam = event.type == "EXAM"
@@ -702,6 +793,7 @@ fun ScheduleEventItem(
     }
 
     Card(
+        onClick = onEdit,
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer(alpha = if (event.isCompleted) 0.5f else 1f),
@@ -767,13 +859,126 @@ fun ScheduleEventItem(
                     )
                 }
             }
+        }
+    }
+}
 
-            IconButton(onClick = onDelete) {
-                Icon(
-                    painter = painterResource(Res.drawable.delete_24px),
-                    contentDescription = "删除事件",
-                    tint = MaterialTheme.colorScheme.outline
+@Composable
+private fun ScheduleEventTimelineItem(
+    event: ScheduleEvent,
+    onToggle: () -> Unit,
+    onEdit: () -> Unit
+) {
+    val isDaily = event.type == "DAILY"
+    val isExam = event.type == "EXAM"
+
+    val badgeLabel = when (event.type) {
+        "EXAM" -> "考试"
+        "MAKEUP" -> "补课"
+        else -> "日程"
+    }
+
+    val containerColor = when (event.type) {
+        "EXAM" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+        "MAKEUP" -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer(alpha = if (event.isCompleted) 0.5f else 1f),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column(
+            modifier = Modifier.width(65.dp).padding(top = 4.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                text = event.startTime ?: EMPTY_TIME_PLACEHOLDER,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 17.sp,
+                    textDecoration = if (event.isCompleted) TextDecoration.LineThrough else null
+                ),
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (!event.endTime.isNullOrBlank()) {
+                Text(
+                    text = event.endTime,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Card(
+            onClick = onEdit,
+            modifier = Modifier.weight(1f),
+            colors = CardDefaults.cardColors(containerColor = containerColor),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = if (isExam) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    shape = MaterialTheme.shapes.extraSmall
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = badgeLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.surface,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = event.title,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                textDecoration = if (event.isCompleted) TextDecoration.LineThrough else null
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    val subInfo = listOfNotNull(
+                        event.location?.takeIf { it.isNotBlank() },
+                        event.detail?.takeIf { it.isNotBlank() }
+                    ).joinToString(" · ")
+
+                    if (subInfo.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = subInfo,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (isDaily) {
+                    Checkbox(
+                        checked = event.isCompleted,
+                        onCheckedChange = { onToggle() }
+                    )
+                }
             }
         }
     }
@@ -818,26 +1023,39 @@ fun ExamImportItem.toScheduleEvent(courseTableId: String = ""): ScheduleEvent = 
 @Composable
 fun AddScheduleEventBottomSheet(
     defaultDate: String,
+    initialEvent: ScheduleEvent? = null,
     onDismiss: () -> Unit,
     onOpenNjuptSync: () -> Unit,
     onImportIcs: () -> Unit,
-    onConfirm: (title: String, type: String, date: String, startTime: String?, endTime: String?, location: String?, detail: String?) -> Unit
+    onConfirm: (title: String, type: String, date: String, startTime: String?, endTime: String?, location: String?, detail: String?) -> Unit,
+    onUpdate: (ScheduleEvent) -> Unit = {},
+    onDelete: (ScheduleEvent) -> Unit = {}
 ) {
-    var selectedType by remember { mutableStateOf("DAILY") }
-    var title by remember { mutableStateOf("") }
-    val initialDate = remember(defaultDate) {
-        runCatching { LocalDate.parse(defaultDate) }.getOrElse {
+    val isEditing = initialEvent != null
+    var smartInput by remember(initialEvent) { mutableStateOf("") }
+    var selectedType by remember(initialEvent) { mutableStateOf(initialEvent?.type ?: "DAILY") }
+    var title by remember(initialEvent) { mutableStateOf(initialEvent?.title.orEmpty()) }
+    val initialDate = remember(defaultDate, initialEvent) {
+        runCatching {
+            LocalDate.parse(initialEvent?.date ?: defaultDate)
+        }.getOrElse {
             Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         }
     }
     var selectedDate by remember(initialDate) { mutableStateOf(initialDate) }
-    var isAllDay by remember { mutableStateOf(false) }
-    var startTime by remember { mutableStateOf("") }
-    var endTime by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var detail by remember { mutableStateOf("") }
+    var isAllDay by remember(initialEvent) {
+        mutableStateOf(initialEvent != null && initialEvent.startTime.isNullOrBlank())
+    }
+    var startTime by remember(initialEvent) { mutableStateOf(initialEvent?.startTime.orEmpty()) }
+    var endTime by remember(initialEvent) { mutableStateOf(initialEvent?.endTime.orEmpty()) }
+    var location by remember(initialEvent) { mutableStateOf(initialEvent?.location.orEmpty()) }
+    var detail by remember(initialEvent) { mutableStateOf(initialEvent?.detail.orEmpty()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var timePickerTarget by remember { mutableStateOf<EventTimeField?>(null) }
+    val smartSource = smartInput.ifBlank { title }
+    val smartResult = remember(smartSource) {
+        smartSource.takeIf { it.isNotBlank() }?.let { SmartScheduleParser.parse(it) }
+    }
 
     val weekDays = stringArrayResource(Res.array.week_days_full_names)
     val formattedDate = stringResource(
@@ -880,29 +1098,80 @@ fun AddScheduleEventBottomSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "添加事项",
+                text = if (isEditing) "编辑事项" else "添加事项",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                QuickImportCard(
-                    emoji = "⚡",
-                    title = "同步南邮考试",
-                    subtitle = "StuDev 班级在线",
-                    onClick = onOpenNjuptSync,
-                    modifier = Modifier.weight(1f)
+            OutlinedTextField(
+                value = smartInput,
+                onValueChange = { smartInput = it },
+                placeholder = { Text("试试：明天下午五点去教三 206 上课") },
+                leadingIcon = {
+                    Text(text = "✨", fontSize = 20.sp)
+                },
+                trailingIcon = {
+                    if (smartInput.isNotEmpty()) {
+                        IconButton(onClick = { smartInput = "" }) {
+                            Icon(
+                                painter = painterResource(Res.drawable.close_24px),
+                                contentDescription = "清除智能输入",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                },
+                singleLine = false,
+                maxLines = 3,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            smartResult?.takeIf { result ->
+                result.hasExplicitDate || result.startTime != null || result.location != null
+            }?.let { result ->
+                SmartScheduleSuggestionCard(
+                    result = result,
+                    onApply = {
+                        selectedType = result.type
+                        title = result.title
+                        selectedDate = result.date
+                        val parsedStart = result.startTime
+                        if (parsedStart.isNullOrBlank()) {
+                            isAllDay = true
+                            startTime = ""
+                            endTime = ""
+                        } else {
+                            isAllDay = false
+                            startTime = parsedStart
+                            endTime = result.endTime.orEmpty()
+                        }
+                        result.location?.takeIf { it.isNotBlank() }?.let { location = it }
+                        smartInput = ""
+                    }
                 )
-                QuickImportCard(
-                    emoji = "📄",
-                    title = "导入 .ics 文件",
-                    subtitle = "离线日历兜底",
-                    onClick = onImportIcs,
-                    modifier = Modifier.weight(1f)
-                )
+            }
+
+            if (!isEditing) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    QuickImportCard(
+                        emoji = "⚡",
+                        title = "同步南邮考试",
+                        subtitle = "StuDev 班级在线",
+                        onClick = onOpenNjuptSync,
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickImportCard(
+                        emoji = "📄",
+                        title = "导入 .ics 文件",
+                        subtitle = "离线日历兜底",
+                        onClick = onImportIcs,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
 
             Row(
@@ -1056,15 +1325,35 @@ fun AddScheduleEventBottomSheet(
 
             Button(
                 onClick = {
-                    onConfirm(
-                        title.trim(),
-                        selectedType,
-                        selectedDate.toString(),
-                        if (isAllDay) null else startTime.takeIf { it.isNotBlank() },
-                        if (isAllDay) null else endTime.takeIf { it.isNotBlank() },
-                        location.takeIf { it.isNotBlank() },
-                        detail.takeIf { it.isNotBlank() }
-                    )
+                    val formStartTime = if (isAllDay) null else startTime.takeIf { it.isNotBlank() }
+                    val formEndTime = if (isAllDay) null else endTime.takeIf { it.isNotBlank() }
+                    val formLocation = location.takeIf { it.isNotBlank() }
+                    val formDetail = detail.takeIf { it.isNotBlank() }
+
+                    val base = initialEvent
+                    if (base != null) {
+                        onUpdate(
+                            base.copy(
+                                title = title.trim(),
+                                type = selectedType,
+                                date = selectedDate.toString(),
+                                startTime = formStartTime,
+                                endTime = formEndTime,
+                                location = formLocation,
+                                detail = formDetail
+                            )
+                        )
+                    } else {
+                        onConfirm(
+                            title.trim(),
+                            selectedType,
+                            selectedDate.toString(),
+                            formStartTime,
+                            formEndTime,
+                            formLocation,
+                            formDetail
+                        )
+                    }
                 },
                 enabled = title.isNotBlank() && !timeRangeInvalid,
                 shape = RoundedCornerShape(16.dp),
@@ -1073,10 +1362,29 @@ fun AddScheduleEventBottomSheet(
                     .height(52.dp)
             ) {
                 Text(
-                    text = "保存事项",
+                    text = if (isEditing) "保存修改" else "保存事项",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            if (isEditing) {
+                OutlinedButton(
+                    onClick = { initialEvent?.let(onDelete) },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Text(
+                        text = "删除该事项",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -1163,6 +1471,79 @@ fun AddScheduleEventBottomSheet(
             }
         ) {
             TimePicker(state = timePickerState)
+        }
+    }
+}
+
+@Composable
+private fun SmartScheduleSuggestionCard(
+    result: SmartScheduleParser.ParseResult,
+    onApply: () -> Unit
+) {
+    val typeLabel = when (result.type) {
+        SmartScheduleParser.TYPE_EXAM -> "考试"
+        SmartScheduleParser.TYPE_MAKEUP -> "补课"
+        else -> "日程"
+    }
+    val dateLabel = buildString {
+        append(result.date.month.number.toString().padStart(2, '0'))
+        append("月")
+        append(result.date.day.toString().padStart(2, '0'))
+        append("日")
+    }
+    val parsedStart = result.startTime
+    val timeLabel = when {
+        parsedStart.isNullOrBlank() -> "全天"
+        result.endTime.isNullOrBlank() -> parsedStart
+        else -> "$parsedStart-${result.endTime}"
+    }
+    val detailLine = buildString {
+        append(dateLabel)
+        append(' ')
+        append(timeLabel)
+        result.location?.takeIf { it.isNotBlank() }?.let { location ->
+            append(" · ")
+            append(location)
+        }
+        append(" · ")
+        append(typeLabel)
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        ),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = "💡 识别结果: ${result.title}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = detailLine,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            TextButton(onClick = onApply) {
+                Text("一键填入")
+            }
         }
     }
 }

@@ -86,21 +86,17 @@ fun MoreOptionsScreen(
 
     // 更新逻辑相关状态
     var updateStatus by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Idle) }
-    var selectedPlatform by remember { mutableStateOf(UpdatePlatform.GITEE) }
 
     // 弹窗可见性控制
     var showUpdateDialog by remember { mutableStateOf(false) }
-    var showChannelDialog by remember { mutableStateOf(false) }
     var showStartScreenDialog by remember { mutableStateOf(false) }
 
-    // 逻辑：执行更新检查
-    val startUpdateCheck: (UpdatePlatform) -> Unit = { platform ->
-        selectedPlatform = platform
-        showChannelDialog = false
+    // 逻辑：直接检查 GitHub 官方更新
+    val startUpdateCheck: () -> Unit = {
         updateStatus = UpdateStatus.Checking
         showUpdateDialog = true
         coroutineScope.launch {
-            updateStatus = updateChecker.checkUpdate(platform, appVersionName)
+            updateStatus = updateChecker.checkUpdate(UpdatePlatform.GITHUB, appVersionName)
         }
     }
 
@@ -175,7 +171,7 @@ fun MoreOptionsScreen(
                     SettingListItem(
                         icon = vectorResource(Res.drawable.update_24px),
                         title = stringResource(Res.string.item_check_software_update),
-                        onClick = { showChannelDialog = true }
+                        onClick = startUpdateCheck
                     )
 
                     // 语言切换 (导航至独立页面)
@@ -267,13 +263,5 @@ fun MoreOptionsScreen(
         onDownloadClick = { targetUrl ->
             updateChecker.launchUpdate(targetUrl)
         }
-    )
-
-    // 更新渠道选择弹窗
-    ChannelSelectionDialog(
-        showDialog = showChannelDialog,
-        currentSelected = selectedPlatform,
-        onDismiss = { showChannelDialog = false },
-        onConfirm = startUpdateCheck
     )
 }

@@ -1,0 +1,36 @@
+{
+  "app_dev": [
+    {
+      "name": "zzemy",
+      "url": "https://github.com/zzemy",
+      "avatar": "avatars/zzemy.webp"
+    },
+    {
+      "name": "XingHeYuZhuan",
+      "url": "https://github.com/XingHeYuZhuan",
+      "avatar": "avatars/xingheyuzhuan.webp"
+    },
+    {
+      "name": "kemi-20",
+      "url": "https://github.com/kemi-20",
+      "avatar": "avatars/kemi20.webp"
+    }
+  ],
+  "jiaowu_adapter": [
+    {
+      "name": "zzemy",
+      "url": "https://github.com/zzemy",
+      "avatar": "avatars/zzemy.webp"
+    },
+    {
+      "name": "kemi-20",
+      "url": "https://github.com/kemi-20",
+      "avatar": "avatars/kemi20.webp"
+    },
+    {
+      "name": "XingHeYuZhuan",
+      "url": "https://github.com/XingHeYuZhuan",
+      "avatar": "avatars/xingheyuzhuan.webp"
+    }
+  ]
+}

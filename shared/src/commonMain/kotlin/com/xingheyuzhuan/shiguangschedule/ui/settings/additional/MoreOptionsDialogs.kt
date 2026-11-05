@@ -20,16 +20,11 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
-import com.xingheyuzhuan.shiguangschedule.tool.UpdatePlatform
 import com.xingheyuzhuan.shiguangschedule.tool.UpdateStatus
 import org.jetbrains.compose.resources.stringResource
 import shiguangschedule.shared.generated.resources.Res
@@ -40,7 +35,6 @@ import shiguangschedule.shared.generated.resources.dialog_checking_update
 import shiguangschedule.shared.generated.resources.dialog_current_version_latest
 import shiguangschedule.shared.generated.resources.dialog_new_version_found
 import shiguangschedule.shared.generated.resources.dialog_select_start_screen
-import shiguangschedule.shared.generated.resources.dialog_select_update_channel
 import shiguangschedule.shared.generated.resources.dialog_update_check_failed
 import shiguangschedule.shared.generated.resources.label_error_message
 import shiguangschedule.shared.generated.resources.label_version_prefix
@@ -81,55 +75,6 @@ fun StartScreenSelectionDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.action_cancel))
-            }
-        }
-    )
-}
-
-/**
- * 更新渠道选择弹窗
- */
-@Composable
-fun ChannelSelectionDialog(
-    showDialog: Boolean,
-    currentSelected: UpdatePlatform,
-    onDismiss: () -> Unit,
-    onConfirm: (UpdatePlatform) -> Unit
-) {
-    if (!showDialog) return
-
-    var selectedPlatform by remember(currentSelected) { mutableStateOf(currentSelected) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.dialog_select_update_channel)) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                UpdatePlatform.entries.forEach { platform ->
-                    ListItem(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedPlatform = platform },
-                        headlineContent = { Text(text = platform.title) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        leadingContent = {
-                            RadioButton(
-                                selected = platform == selectedPlatform,
-                                onClick = { selectedPlatform = platform }
-                            )
-                        }
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(selectedPlatform) }) {
-                Text(stringResource(Res.string.action_confirm))
-            }
-        },
-        dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(Res.string.action_cancel))
             }
