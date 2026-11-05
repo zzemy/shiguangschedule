@@ -1,12 +1,12 @@
 {
-  "tag_name": "v2.1.0-njupt.12",
-  "version_name": "2.1.0-njupt.12",
-  "body": "1. 彻底根除「载入窗口小部件时出现问题」崩溃：彻底剔除 setBackgroundResource 反射调用，重构为 Android 原生标准静态视图组显隐切换\n2. 4x2 日程列表与 2x2 焦点小组件双端 100% 遵守 RemoteViews 白名单规范，零崩溃直刷\n3. 视觉语言全面统一：无 Emoji、规范化时间与标题地点排版、精致低饱和度分类胶囊",
-  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.12",
+  "tag_name": "v2.1.0-njupt.13",
+  "version_name": "2.1.0-njupt.13",
+  "body": "1. 彻底根除「载入窗口小部件时出现问题」崩溃：全盘彻底拆解 60 处 paddingHorizontal、paddingVertical、layout_marginVertical、letterSpacing 为标准原生兼容语法\n2. 4x2 日程时间线与 2x2 焦点小组件 100% 遵守 Android 系统级 RemoteViews 规范，杜绝一切国产厂商 Launcher InflateException\n3. 视觉语言全面统一：无 Emoji、规范化时间与标题地点排版、精致低饱和度分类胶囊",
+  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.13",
   "assets": [
     {
-      "name": "shiguangschedule-v2.1.0-njupt.12-arm64-v8a-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.12/shiguangschedule-v2.1.0-njupt.12-arm64-v8a-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.13-arm64-v8a-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.13/shiguangschedule-v2.1.0-njupt.13-arm64-v8a-release.apk"
     }
   ]
 }

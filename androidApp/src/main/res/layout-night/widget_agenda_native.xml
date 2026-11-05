@@ -18,8 +18,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="10dp">
+        android:paddingLeft="12dp" android:paddingRight="12dp"
+        android:paddingTop="10dp" android:paddingBottom="10dp">
 
         <!-- 顶部：日期星期 + 最近考试倒计时 -->
         <LinearLayout
@@ -49,8 +49,8 @@
                 android:layout_marginStart="8dp"
                 android:background="@drawable/widget_agenda_pill_bg_dark"
                 android:includeFontPadding="false"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
+                android:paddingLeft="8dp" android:paddingRight="8dp"
+                android:paddingTop="3dp" android:paddingBottom="3dp"
                 android:textColor="#F0A9A3"
                 android:textSize="10dp"
                 android:textStyle="bold"
@@ -96,7 +96,6 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
-                    android:letterSpacing="0.04"
                     android:text="@string/widget_agenda_empty_title"
                     android:textColor="@color/widget_text_primary"
                     android:textSize="13dp"
