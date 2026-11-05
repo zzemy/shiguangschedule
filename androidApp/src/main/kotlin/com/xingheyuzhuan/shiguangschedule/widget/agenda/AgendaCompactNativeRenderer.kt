@@ -116,9 +116,10 @@ object AgendaCompactNativeRenderer {
             .filter { it.kind == AgendaKind.EXAM }
             .minWithOrNull(compareBy<AgendaEntry> { it.date }.thenBy { it.sortTime })
 
-        val todayTodo = entries.asSequence()
-            .filter { it.kind == AgendaKind.TODO && it.date == today }
-            .minWithOrNull(compareBy<AgendaEntry> { it.sortTime })
+        // 优先显示今日待办；若今日无待办，自动展示未来最近的 1 条待办/日程
+        val nearestTodo = entries.asSequence()
+            .filter { it.kind != AgendaKind.EXAM }
+            .minWithOrNull(compareBy<AgendaEntry> { it.date }.thenBy { it.sortTime })
 
         val widgetStyle = snapshot.style?.widget_style
         val alphaPercent: Float = widgetStyle?.background_alpha ?: 1.0f
@@ -134,8 +135,8 @@ object AgendaCompactNativeRenderer {
             seedColorLong = widgetStyle?.seed_color
         )
 
-        bindGroup(context, rv, LIGHT_IDS, lightColors, alphaPercent, scale, nextExam, todayTodo, ACCENT_EXAM_DAY)
-        bindGroup(context, rv, DARK_IDS, darkColors, alphaPercent, scale, nextExam, todayTodo, ACCENT_EXAM_NIGHT)
+        bindGroup(context, rv, LIGHT_IDS, lightColors, alphaPercent, scale, nextExam, nearestTodo, ACCENT_EXAM_DAY)
+        bindGroup(context, rv, DARK_IDS, darkColors, alphaPercent, scale, nextExam, nearestTodo, ACCENT_EXAM_NIGHT)
 
         return rv
     }
@@ -249,11 +250,13 @@ object AgendaCompactNativeRenderer {
     }
 
     private fun buildTodoMeta(entry: AgendaEntry): String {
-        val parts = mutableListOf<String>()
-        val time = formatTimeRange(entry.startTime, entry.endTime)
-        if (time.isNotBlank()) parts += time
-        if (entry.location.isNotBlank()) parts += entry.location
-        return parts.joinToString(" · ")
+        val today = LocalDate.now()
+        val dateText = if (entry.date == today) {
+            entry.startTime.ifBlank { "今天" }
+        } else {
+            entry.date.format(DATE_FORMATTER)
+        }
+        return dateText
     }
 
     private fun formatTimeRange(startTime: String, endTime: String): String {

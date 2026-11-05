@@ -1,12 +1,12 @@
 {
-  "tag_name": "v2.1.0-njupt.7",
-  "version_name": "2.1.0-njupt.7",
-  "body": "1. 彻底移除全周大课表组件，杜绝桌面文字截断拥挤硬伤\n2. 全新重构【专属日程与考试看板】桌面小组件（支持 4x2 时间线与 2x2 焦点卡片双规格）\n3. 列表完整呈现期末考试（带天数倒计时与教室）与日常待办/日程\n4. 课程与日程数据彻底解耦，互不干扰，补齐桌面添加缩略图\n5. 日程表单草稿记忆防手滑，更新检测免 403 访问受限",
-  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.7",
+  "tag_name": "v2.1.0-njupt.8",
+  "version_name": "2.1.0-njupt.8",
+  "body": "1. 彻底清除课程组件中残留的虚拟考试倒计时，课表回归 100% 纯粹\n2. 2x2 日程焦点小组件全新重构：去除生硬卡片嵌套，一体化展示焦点考试倒计时与最近待办\n3. 4x2 日程与考试看板完整按时序罗列所有期末考试与待办事项\n4. 彻底移除全周大课表组件，杜绝桌面截断挤压硬伤",
+  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.8",
   "assets": [
     {
-      "name": "shiguangschedule-v2.1.0-njupt.7-arm64-v8a-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.7/shiguangschedule-v2.1.0-njupt.7-arm64-v8a-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.8-arm64-v8a-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.8/shiguangschedule-v2.1.0-njupt.8-arm64-v8a-release.apk"
     }
   ]
 }

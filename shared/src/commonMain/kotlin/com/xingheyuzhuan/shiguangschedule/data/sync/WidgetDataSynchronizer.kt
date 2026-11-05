@@ -268,38 +268,9 @@ class WidgetDataSynchronizer(
                 if (widgetCourse != null) {
                     widgetCourses.add(widgetCourse)
                 }
-            }
-
-            // 如果当天是今天，且今天没有考试，检查未来是否有未开始的考试，将最近考试倒计时作为重要待办同步进小组件
-            if (date == today) {
-                val todayExams = events.filter { it.type == "EXAM" }
-                if (todayExams.isEmpty()) {
-                    val upcomingExams = scheduleEventRepository.getUpcomingExamsFlow(tableId, dateString).first()
-                    val nextExam = upcomingExams.firstOrNull { it.date > dateString }
-                    if (nextExam != null) {
-                        val days = try {
-                            date.daysUntil(LocalDate.parse(nextExam.date))
-                        } catch (e: Exception) { 0 }
-                        if (days in 1..30) {
-                            widgetCourses.add(
-                                WidgetCourse(
-                                    id = "countdown-${nextExam.id}-$dateString",
-                                    name = "⏳ [倒计时] ${nextExam.title} (还有${days}天)",
-                                    teacher = "",
-                                    position = listOfNotNull(nextExam.date, nextExam.location).joinToString(" · "),
-                                    startTime = nextExam.startTime ?: "",
-                                    endTime = nextExam.endTime ?: "",
-                                    isSkipped = false,
-                                    date = dateString,
-                                    colorInt = 0
-                                )
-                            )
-                        }
-                    }
                 }
-            }
 
-            val alignedDate = getStartDayOfWeek(date, firstDayOfWeekInt)
+                val alignedDate = getStartDayOfWeek(date, firstDayOfWeekInt)
 
             // 计算当前日期是第几周
             val diffDays = alignedSemesterStartDate.daysUntil(alignedDate)
