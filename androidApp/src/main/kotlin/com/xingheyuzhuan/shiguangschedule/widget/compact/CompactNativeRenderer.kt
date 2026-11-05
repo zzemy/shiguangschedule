@@ -96,10 +96,9 @@ object CompactNativeRenderer {
         val tomorrowStr = tomorrow.toString()
 
         val todayRemaining = allCourses.filter {
-            (it.date == todayStr || it.date.isBlank()) && !it.is_skipped && (it.id.startsWith("countdown-") || try { LocalTime.parse(it.end_time) > now } catch (_: Exception) { true })
-        }.sortedWith(
-            compareBy<WidgetCourseProto> { !it.id.startsWith("countdown-") }.thenBy { it.start_time }
-        )
+            (it.date == todayStr || it.date.isBlank()) && !it.is_skipped &&
+                try { LocalTime.parse(it.end_time) > now } catch (_: Exception) { true }
+        }.sortedBy { it.start_time }
 
         val tomorrowCourses = allCourses.filter { it.date == tomorrowStr && !it.is_skipped }.sortedBy { it.start_time }
 
@@ -200,6 +199,8 @@ object CompactNativeRenderer {
         rv.setViewVisibility(R.id.list_view_courses, View.GONE)
         rv.setViewVisibility(R.id.container_status, View.GONE)
         rv.setViewVisibility(R.id.tv_current_week, View.GONE)
+        rv.setViewVisibility(R.id.tv_footer, View.GONE)
+        rv.setTextViewText(R.id.tv_footer, "")
 
         // 暗色树重置
         rv.setViewVisibility(R.id.container_full_status_dark, View.GONE)
@@ -207,6 +208,8 @@ object CompactNativeRenderer {
         rv.setViewVisibility(R.id.list_view_courses_dark, View.GONE)
         rv.setViewVisibility(R.id.container_status_dark, View.GONE)
         rv.setViewVisibility(R.id.tv_current_week_dark, View.GONE)
+        rv.setViewVisibility(R.id.tv_footer_dark, View.GONE)
+        rv.setTextViewText(R.id.tv_footer_dark, "")
     }
 
     /**
@@ -223,8 +226,10 @@ object CompactNativeRenderer {
         // 显隐同步设置
         rv.setViewVisibility(R.id.list_view_courses, View.VISIBLE)
         rv.setViewVisibility(R.id.container_status, View.GONE)
+        rv.setViewVisibility(R.id.tv_footer, View.VISIBLE)
         rv.setViewVisibility(R.id.list_view_courses_dark, View.VISIBLE)
         rv.setViewVisibility(R.id.container_status_dark, View.GONE)
+        rv.setViewVisibility(R.id.tv_footer_dark, View.VISIBLE)
 
         // 1. 更新底部汇总文本
         val footerRes = if (isTomorrow) R.string.widget_course_total_count else R.string.widget_course_remaining_count
@@ -282,12 +287,14 @@ object CompactNativeRenderer {
             rv.setViewVisibility(R.id.inner_content_card, View.GONE)
             rv.setViewVisibility(R.id.container_status, View.GONE)
             rv.setViewVisibility(R.id.container_full_status, View.VISIBLE)
+            rv.setViewVisibility(R.id.tv_footer, View.GONE)
             rv.setTextViewText(R.id.tv_full_status_title, title)
 
             // 暗色树
             rv.setViewVisibility(R.id.inner_content_card_dark, View.GONE)
             rv.setViewVisibility(R.id.container_status_dark, View.GONE)
             rv.setViewVisibility(R.id.container_full_status_dark, View.VISIBLE)
+            rv.setViewVisibility(R.id.tv_footer_dark, View.GONE)
             rv.setTextViewText(R.id.tv_full_status_title_dark, title)
 
             if (!msg.isNullOrBlank()) {
@@ -305,6 +312,7 @@ object CompactNativeRenderer {
             rv.setViewVisibility(R.id.list_view_courses, View.GONE)
             rv.setViewVisibility(R.id.container_status, View.VISIBLE)
             rv.setViewVisibility(R.id.container_full_status, View.GONE)
+            rv.setViewVisibility(R.id.tv_footer, View.GONE)
             rv.setTextViewText(R.id.tv_status_title, title)
 
             // 暗色树
@@ -312,6 +320,7 @@ object CompactNativeRenderer {
             rv.setViewVisibility(R.id.list_view_courses_dark, View.GONE)
             rv.setViewVisibility(R.id.container_status_dark, View.VISIBLE)
             rv.setViewVisibility(R.id.container_full_status_dark, View.GONE)
+            rv.setViewVisibility(R.id.tv_footer_dark, View.GONE)
             rv.setTextViewText(R.id.tv_status_title_dark, title)
 
             if (!msg.isNullOrBlank()) {

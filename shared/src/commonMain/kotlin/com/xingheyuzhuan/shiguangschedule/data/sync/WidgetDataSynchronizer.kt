@@ -166,6 +166,9 @@ class WidgetDataSynchronizer(
         courseConfig: CourseTableConfig,
         coursesWithWeeks: List<CourseWithWeeks>
     ) = withContext(Dispatchers.IO) {
+        // 同步前先清理历史版本遗留的虚拟考试倒计时记录，避免脏数据被课程小组件继续渲染
+        runCatching { widgetRepository.deleteCountdownCourses() }
+
         val tableId = courseConfig.courseTableId
         val semesterStartDateString = courseConfig.semesterStartDate ?: run {
             widgetRepository.deleteAll()

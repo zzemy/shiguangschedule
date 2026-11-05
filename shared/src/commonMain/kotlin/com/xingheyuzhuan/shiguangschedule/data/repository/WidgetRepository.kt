@@ -55,6 +55,14 @@ class WidgetRepository(
     }
 
     /**
+     * 清理历史版本遗留的虚拟考试倒计时记录，避免旧数据被课程小组件继续渲染。
+     */
+    suspend fun deleteCountdownCourses() {
+        widgetCourseDao.deleteCountdownCourses()
+        _dataUpdatedChannel.trySend(Unit)
+    }
+
+    /**
      * 插入或更新小组件设置。
      */
     suspend fun insertOrUpdateAppSettings(settings: WidgetAppSettings) {

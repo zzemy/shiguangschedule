@@ -37,4 +37,11 @@ interface WidgetCourseDao {
      */
     @Query("DELETE FROM widget_courses")
     suspend fun deleteAll()
+
+    /**
+     * 删除历史版本生成的虚拟考试倒计时脏数据（id 以 countdown- 开头）。
+     * 课程小组件已不再展示该类虚拟条目，需在同步与刷新前彻底清理。
+     */
+    @Query("DELETE FROM widget_courses WHERE id LIKE 'countdown-%'")
+    suspend fun deleteCountdownCourses()
 }

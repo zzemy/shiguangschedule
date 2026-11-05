@@ -84,19 +84,13 @@ object ListVerticalNativeRenderer {
         val todayRemaining = allCourses.filter { course ->
             val matchDate = course.date == todayStr || course.date.isBlank()
             val notSkipped = !course.is_skipped
-            val notEnded = if (course.id.startsWith("countdown-")) {
-                true // 倒计时全天有效，绝不被今日当前时间判定为已结束过滤
-            } else {
-                try {
-                    LocalTime.parse(course.end_time) > now
-                } catch (e: Exception) {
-                    true
-                }
+            val notEnded = try {
+                LocalTime.parse(course.end_time) > now
+            } catch (e: Exception) {
+                true
             }
             matchDate && notSkipped && notEnded
-        }.sortedWith(
-            compareBy<WidgetCourseProto> { !it.id.startsWith("countdown-") }.thenBy { it.start_time }
-        )
+        }.sortedBy { it.start_time }
 
         val tomorrowCourses = allCourses.filter { course ->
             course.date == tomorrowStr && !course.is_skipped
@@ -146,17 +140,14 @@ object ListVerticalNativeRenderer {
         when {
             todayRemaining.isNotEmpty() -> {
                 val headerTitle = "$weekPart  $dayOfWeekStr"
-                val remainingCoursesCount = todayRemaining.count { !it.id.startsWith("countdown-") && !it.id.startsWith("daily-") }
+                val remainingCoursesCount = todayRemaining.count { !it.id.startsWith("daily-") }
                 val countSummary = if (remainingCoursesCount > 0) {
                     context.getString(R.string.widget_remaining_courses_format_today, remainingCoursesCount)
                 } else {
                     ""
                 }
 
-                rv.setTextViewText(R.id.tv_header_title, headerTitle)
-                rv.setTextViewText(R.id.tv_header_title_dark, headerTitle)
-                rv.setTextViewText(R.id.tv_header_count_summary, countSummary)
-                rv.setTextViewText(R.id.tv_header_count_summary_dark, countSummary)
+                applyHeader(rv, headerTitle, countSummary)
 
                 renderCourseListView(context, rv, appWidgetId, todayRemaining, snapshot)
             }
@@ -165,20 +156,14 @@ object ListVerticalNativeRenderer {
                 val headerTitle = "$previewTitle $weekPart"
                 val countSummary = context.getString(R.string.widget_remaining_courses_format_tomorrow, tomorrowCourses.size)
 
-                rv.setTextViewText(R.id.tv_header_title, headerTitle)
-                rv.setTextViewText(R.id.tv_header_title_dark, headerTitle)
-                rv.setTextViewText(R.id.tv_header_count_summary, countSummary)
-                rv.setTextViewText(R.id.tv_header_count_summary_dark, countSummary)
+                applyHeader(rv, headerTitle, countSummary)
 
                 renderCourseListView(context, rv, appWidgetId, tomorrowCourses, snapshot)
             }
             else -> {
                 val headerTitle = "$weekPart  $dayOfWeekStr"
 
-                rv.setTextViewText(R.id.tv_header_title, headerTitle)
-                rv.setTextViewText(R.id.tv_header_title_dark, headerTitle)
-                rv.setTextViewText(R.id.tv_header_count_summary, "")
-                rv.setTextViewText(R.id.tv_header_count_summary_dark, "")
+                applyHeader(rv, headerTitle, "")
 
                 val hasCoursesToday = allCourses.any { it.date == todayStr || it.date.isBlank() }
                 val tip = if (!hasCoursesToday) context.getString(R.string.text_no_courses_today) else context.getString(R.string.widget_today_courses_finished)
@@ -196,11 +181,34 @@ object ListVerticalNativeRenderer {
         rv.setViewVisibility(R.id.inner_content_card, View.VISIBLE)
         rv.setViewVisibility(R.id.list_view_courses, View.GONE)
         rv.setViewVisibility(R.id.container_status, View.GONE)
+        rv.setTextViewText(R.id.tv_header_title, "")
+        rv.setTextViewText(R.id.tv_header_count_summary, "")
 
         rv.setViewVisibility(R.id.container_full_status_dark, View.GONE)
         rv.setViewVisibility(R.id.inner_content_card_dark, View.VISIBLE)
         rv.setViewVisibility(R.id.list_view_courses_dark, View.GONE)
         rv.setViewVisibility(R.id.container_status_dark, View.GONE)
+        rv.setTextViewText(R.id.tv_header_title_dark, "")
+        rv.setTextViewText(R.id.tv_header_count_summary_dark, "")
+    }
+
+    /**
+     * 统一写入表头：左侧标题只承载日期/周次/星期，右侧只承载剩余课数统计。
+     * 所有分支都必须通过此方法写入，杜绝同一统计文案出现在两个控件中。
+     */
+    private fun applyHeader(rv: RemoteViews, title: String, countSummary: String) {
+        rv.setTextViewText(R.id.tv_header_title, title)
+        rv.setTextViewText(R.id.tv_header_title_dark, title)
+        rv.setTextViewText(R.id.tv_header_count_summary, countSummary)
+        rv.setTextViewText(R.id.tv_header_count_summary_dark, countSummary)
+        rv.setViewVisibility(
+            R.id.tv_header_count_summary,
+            if (countSummary.isBlank()) View.GONE else View.VISIBLE
+        )
+        rv.setViewVisibility(
+            R.id.tv_header_count_summary_dark,
+            if (countSummary.isBlank()) View.GONE else View.VISIBLE
+        )
     }
 
     /**
