@@ -301,7 +301,7 @@ object AgendaNativeRenderer {
         rv.setTextColor(R.id.tv_item_time, colors.primaryTextColor)
         rv.setTextViewTextSize(R.id.tv_item_time, TypedValue.COMPLEX_UNIT_DIP, 11.5f * scale)
 
-        rv.setInt(R.id.divider_vertical, "setBackgroundColor", colors.dividerColor)
+        // 竖向分割线颜色已在 XML 布局中通过 drawable 静态指定，无需通过非法反射方法动态设置
 
         rv.setTextViewText(R.id.tv_item_badge, badgeText)
         rv.setTextColor(R.id.tv_item_badge, accentTextColor)

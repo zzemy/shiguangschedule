@@ -1,12 +1,12 @@
 {
-  "tag_name": "v2.1.0-njupt.10",
-  "version_name": "2.1.0-njupt.10",
-  "body": "1. 彻底根治 2x2 日程小组件报「载入窗口小部件时出现问题」：统一日夜间一套 View ID，杜绝系统级 ActionException\n2. 全面重构小组件视觉语言：彻底去除 ⏳、📍 等 Emoji 杂音，采用统一的高级调色板与材质胶囊\n3. 4x2 日程列表项优化：日期与时间规范化对齐，主标题加粗清晰，地点与天数倒计时整齐一体\n4. 课表小组件纯粹化与表头去重，零崩溃零阻塞",
-  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.10",
+  "tag_name": "v2.1.0-njupt.11",
+  "version_name": "2.1.0-njupt.11",
+  "body": "1. 彻底根除「载入窗口小部件时出现问题」崩溃源：移除 RemoteViews 中未开放的 setBackgroundColor 反射调用，4x2 与 2x2 稳定直刷\n2. 全面统一高级视觉设计语言：彻底去除 ⏳、📍 等 Emoji 杂音，采用统一的高级调色板与材质胶囊\n3. 4x2 日程列表项优化：日期与时间规范化对齐，主标题加粗清晰，地点与天数倒计时整齐一体\n4. 课表小组件纯粹化与表头去重，零崩溃零阻塞",
+  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.11",
   "assets": [
     {
-      "name": "shiguangschedule-v2.1.0-njupt.10-arm64-v8a-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.10/shiguangschedule-v2.1.0-njupt.10-arm64-v8a-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.11-arm64-v8a-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.11/shiguangschedule-v2.1.0-njupt.11-arm64-v8a-release.apk"
     }
   ]
 }

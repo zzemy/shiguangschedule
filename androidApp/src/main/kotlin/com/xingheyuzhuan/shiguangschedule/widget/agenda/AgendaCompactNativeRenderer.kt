@@ -109,7 +109,7 @@ object AgendaCompactNativeRenderer {
         nearestTodo: AgendaEntry?
     ) {
         rv.setImageViewBackground(R.id.card_bg_image, colors.backgroundColor, alphaPercent)
-        rv.setInt(R.id.divider_horizontal, "setBackgroundColor", colors.dividerColor)
+        // divider 颜色已在 XML 布局中通过主题资源静态指定，无需通过非法反射方法动态设置
 
         // 顶部：分区标题与倒计时胶囊
         val examAccent = AgendaPalette.exam.textColor(isDark)
