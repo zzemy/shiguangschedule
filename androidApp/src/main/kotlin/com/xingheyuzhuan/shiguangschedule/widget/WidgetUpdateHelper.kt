@@ -255,13 +255,15 @@ private suspend fun loadAgendaItems(
     today: LocalDate,
     fallbackCourses: List<WidgetCourse>
 ): List<WidgetAgendaItemProto> {
-    val mainDatabaseItems = try {
+    // 返回 null 表示主数据库不可用，需要回退到 Widget 本地数据；
+    // 返回空列表表示主数据库正常但当前确实没有日程，不应再使用旧的本地缓存。
+    val mainDatabaseItems: List<WidgetAgendaItemProto>? = try {
         val appSettingsRepository = WidgetDependencies.getOrNull<AppSettingsRepository>()
         val scheduleEventRepository = WidgetDependencies.getOrNull<ScheduleEventRepository>()
 
         if (appSettingsRepository == null || scheduleEventRepository == null) {
             Log.w(TAG, "日程数据仓库不可用，改用 Widget 本地数据")
-            emptyList()
+            null
         } else {
             val tableId = loadOrNull("当前课表 ID", 2.seconds) {
                 appSettingsRepository.getAppSettingsOnce().currentCourseTableId
@@ -274,19 +276,17 @@ private suspend fun loadAgendaItems(
                     scheduleEventRepository
                         .getUpcomingAgendaEventsFlow(tableId, today.toString())
                         .first()
-                }.orEmpty().mapNotNull { event -> event.toAgendaItemProto(today) }
+                }?.mapNotNull { event -> event.toAgendaItemProto(today) }
             }
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         Log.w(TAG, "读取主数据库日程失败，改用 Widget 本地数据", e)
-        emptyList()
+        null
     }
 
-    val items = mainDatabaseItems.ifEmpty {
-        fallbackCourses.mapNotNull { course -> course.toAgendaItemProto(today) }
-    }
+    val items = mainDatabaseItems ?: fallbackCourses.mapNotNull { course -> course.toAgendaItemProto(today) }
 
     return items.sortedWith(
         compareBy<WidgetAgendaItemProto> { it.date }.thenBy { it.start_time.ifBlank { "99:99" } }
