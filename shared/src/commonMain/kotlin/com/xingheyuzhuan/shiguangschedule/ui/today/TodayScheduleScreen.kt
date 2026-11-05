@@ -134,6 +134,43 @@ private const val DEFAULT_DAYS_ZERO = "0"
 private const val DEFAULT_OVERDUE_DAYS = 1
 private const val TIMELINE_TIME_SORT_KEY = "99:99"
 
+/**
+ * 添加日程抽屉的表单草稿。
+ *
+ * 抽屉被下滑关闭时不会销毁草稿，再次打开可继续编辑；仅在保存成功后清空。
+ */
+public data class DraftState(
+    val smartInput: String = "",
+    val type: String = "DAILY",
+    val title: String = "",
+    val date: String = "",
+    val isAllDay: Boolean = false,
+    val startTime: String = "",
+    val endTime: String = "",
+    val location: String = "",
+    val detail: String = ""
+) {
+    val hasInput: Boolean
+        get() = smartInput.isNotBlank() ||
+            title.isNotBlank() ||
+            startTime.isNotBlank() ||
+            endTime.isNotBlank() ||
+            location.isNotBlank() ||
+            detail.isNotBlank() ||
+            type != "DAILY"
+}
+
+private fun ScheduleEvent.toDraftState(): DraftState = DraftState(
+    type = type,
+    title = title,
+    date = date,
+    isAllDay = startTime.isNullOrBlank(),
+    startTime = startTime.orEmpty(),
+    endTime = endTime.orEmpty(),
+    location = location.orEmpty(),
+    detail = detail.orEmpty()
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScheduleScreen(
@@ -149,6 +186,7 @@ fun TodayScheduleScreen(
     val scope = rememberCoroutineScope()
 
     var showAddSheet by remember { mutableStateOf(false) }
+    var addDraft by remember { mutableStateOf<DraftState?>(null) }
     var editingEvent by remember { mutableStateOf<ScheduleEvent?>(null) }
     var showNjuptExamSyncSheet by remember { mutableStateOf(false) }
     var icsPreviewExams by remember { mutableStateOf<List<ExamImportItem>?>(null) }
@@ -189,7 +227,12 @@ fun TodayScheduleScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { showAddSheet = true }) {
+                    IconButton(
+                        onClick = {
+                            if (addDraft == null) addDraft = DraftState(date = defaultDate)
+                            showAddSheet = true
+                        }
+                    ) {
                         Icon(
                             painter = painterResource(Res.drawable.add_24px),
                             contentDescription = "添加日程",
@@ -225,6 +268,8 @@ fun TodayScheduleScreen(
     if (showAddSheet) {
         AddScheduleEventBottomSheet(
             defaultDate = defaultDate,
+            draft = addDraft ?: DraftState(date = defaultDate),
+            onDraftChange = { addDraft = it },
             onDismiss = { showAddSheet = false },
             onOpenNjuptSync = {
                 showAddSheet = false
@@ -237,6 +282,7 @@ fun TodayScheduleScreen(
             },
             onConfirm = { title, type, date, startTime, endTime, location, detail ->
                 viewModel.addEvent(title, type, date, startTime, endTime, location, detail)
+                addDraft = null
                 showAddSheet = false
             }
         )
@@ -1024,6 +1070,8 @@ fun ExamImportItem.toScheduleEvent(courseTableId: String = ""): ScheduleEvent = 
 fun AddScheduleEventBottomSheet(
     defaultDate: String,
     initialEvent: ScheduleEvent? = null,
+    draft: DraftState? = null,
+    onDraftChange: (DraftState) -> Unit = {},
     onDismiss: () -> Unit,
     onOpenNjuptSync: () -> Unit,
     onImportIcs: () -> Unit,
@@ -1032,9 +1080,6 @@ fun AddScheduleEventBottomSheet(
     onDelete: (ScheduleEvent) -> Unit = {}
 ) {
     val isEditing = initialEvent != null
-    var smartInput by remember(initialEvent) { mutableStateOf("") }
-    var selectedType by remember(initialEvent) { mutableStateOf(initialEvent?.type ?: "DAILY") }
-    var title by remember(initialEvent) { mutableStateOf(initialEvent?.title.orEmpty()) }
     val initialDate = remember(defaultDate, initialEvent) {
         runCatching {
             LocalDate.parse(initialEvent?.date ?: defaultDate)
@@ -1042,19 +1087,27 @@ fun AddScheduleEventBottomSheet(
             Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         }
     }
-    var selectedDate by remember(initialDate) { mutableStateOf(initialDate) }
-    var isAllDay by remember(initialEvent) {
-        mutableStateOf(initialEvent != null && initialEvent.startTime.isNullOrBlank())
+    var workingDraft by remember(initialEvent) {
+        mutableStateOf(
+            initialEvent?.toDraftState()
+                ?: draft
+                ?: DraftState(date = initialDate.toString())
+        )
     }
-    var startTime by remember(initialEvent) { mutableStateOf(initialEvent?.startTime.orEmpty()) }
-    var endTime by remember(initialEvent) { mutableStateOf(initialEvent?.endTime.orEmpty()) }
-    var location by remember(initialEvent) { mutableStateOf(initialEvent?.location.orEmpty()) }
-    var detail by remember(initialEvent) { mutableStateOf(initialEvent?.detail.orEmpty()) }
+    val selectedDate = remember(workingDraft.date) {
+        runCatching { LocalDate.parse(workingDraft.date) }.getOrElse { initialDate }
+    }
     var showDatePicker by remember { mutableStateOf(false) }
     var timePickerTarget by remember { mutableStateOf<EventTimeField?>(null) }
-    val smartSource = smartInput.ifBlank { title }
+    val smartSource = workingDraft.smartInput.ifBlank { workingDraft.title }
     val smartResult = remember(smartSource) {
         smartSource.takeIf { it.isNotBlank() }?.let { SmartScheduleParser.parse(it) }
+    }
+
+    fun updateDraft(transform: (DraftState) -> DraftState) {
+        val updated = transform(workingDraft)
+        workingDraft = updated
+        if (!isEditing) onDraftChange(updated)
     }
 
     val weekDays = stringArrayResource(Res.array.week_days_full_names)
@@ -1067,10 +1120,10 @@ fun AddScheduleEventBottomSheet(
     val weekDayName = weekDays.getOrNull(selectedDate.dayOfWeek.isoDayNumber - 1).orEmpty()
     val dateDisplay = "$formattedDate $weekDayName"
 
-    val timeRangeInvalid = !isAllDay &&
-        startTime.isNotBlank() &&
-        endTime.isNotBlank() &&
-        endTime <= startTime
+    val timeRangeInvalid = !workingDraft.isAllDay &&
+        workingDraft.startTime.isNotBlank() &&
+        workingDraft.endTime.isNotBlank() &&
+        workingDraft.endTime <= workingDraft.startTime
 
     val typeOptions = remember {
         listOf(
@@ -1097,22 +1150,38 @@ fun AddScheduleEventBottomSheet(
                 .padding(top = 4.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = if (isEditing) "编辑事项" else "添加事项",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isEditing) "编辑事项" else "添加事项",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (!isEditing) {
+                    TextButton(
+                        onClick = {
+                            updateDraft { DraftState(date = initialDate.toString()) }
+                        },
+                        enabled = workingDraft.hasInput
+                    ) {
+                        Text("清空重填")
+                    }
+                }
+            }
 
             OutlinedTextField(
-                value = smartInput,
-                onValueChange = { smartInput = it },
+                value = workingDraft.smartInput,
+                onValueChange = { value -> updateDraft { it.copy(smartInput = value) } },
                 placeholder = { Text("试试：明天下午五点去教三 206 上课") },
                 leadingIcon = {
                     Text(text = "✨", fontSize = 20.sp)
                 },
                 trailingIcon = {
-                    if (smartInput.isNotEmpty()) {
-                        IconButton(onClick = { smartInput = "" }) {
+                    if (workingDraft.smartInput.isNotEmpty()) {
+                        IconButton(onClick = { updateDraft { it.copy(smartInput = "") } }) {
                             Icon(
                                 painter = painterResource(Res.drawable.close_24px),
                                 contentDescription = "清除智能输入",
@@ -1133,21 +1202,19 @@ fun AddScheduleEventBottomSheet(
                 SmartScheduleSuggestionCard(
                     result = result,
                     onApply = {
-                        selectedType = result.type
-                        title = result.title
-                        selectedDate = result.date
                         val parsedStart = result.startTime
-                        if (parsedStart.isNullOrBlank()) {
-                            isAllDay = true
-                            startTime = ""
-                            endTime = ""
-                        } else {
-                            isAllDay = false
-                            startTime = parsedStart
-                            endTime = result.endTime.orEmpty()
+                        updateDraft { current ->
+                            current.copy(
+                                type = result.type,
+                                title = result.title,
+                                date = result.date.toString(),
+                                isAllDay = parsedStart.isNullOrBlank(),
+                                startTime = parsedStart.orEmpty(),
+                                endTime = if (parsedStart.isNullOrBlank()) "" else result.endTime.orEmpty(),
+                                location = result.location?.takeIf { it.isNotBlank() } ?: current.location,
+                                smartInput = ""
+                            )
                         }
-                        result.location?.takeIf { it.isNotBlank() }?.let { location = it }
-                        smartInput = ""
                     }
                 )
             }
@@ -1180,8 +1247,8 @@ fun AddScheduleEventBottomSheet(
             ) {
                 typeOptions.forEach { (type, label) ->
                     FilterChip(
-                        selected = selectedType == type,
-                        onClick = { selectedType = type },
+                        selected = workingDraft.type == type,
+                        onClick = { updateDraft { it.copy(type = type) } },
                         label = {
                             Text(
                                 text = label,
@@ -1197,11 +1264,11 @@ fun AddScheduleEventBottomSheet(
             }
 
             OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
+                value = workingDraft.title,
+                onValueChange = { value -> updateDraft { it.copy(title = value) } },
                 label = {
                     Text(
-                        when (selectedType) {
+                        when (workingDraft.type) {
                             "EXAM" -> "考试科目（如：高等数学期末）"
                             "MAKEUP" -> "补课名称（如：物理实验）"
                             else -> "日程标题（如：交作业/班会）"
@@ -1270,28 +1337,28 @@ fun AddScheduleEventBottomSheet(
                     )
                 }
                 Switch(
-                    checked = isAllDay,
-                    onCheckedChange = { isAllDay = it }
+                    checked = workingDraft.isAllDay,
+                    onCheckedChange = { checked -> updateDraft { it.copy(isAllDay = checked) } }
                 )
             }
 
-            if (!isAllDay) {
+            if (!workingDraft.isAllDay) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     TimeFieldCard(
                         label = "开始时间",
-                        value = startTime,
+                        value = workingDraft.startTime,
                         onClick = { timePickerTarget = EventTimeField.START },
-                        onClear = { startTime = "" },
+                        onClear = { updateDraft { it.copy(startTime = "") } },
                         modifier = Modifier.weight(1f)
                     )
                     TimeFieldCard(
                         label = "结束时间",
-                        value = endTime,
+                        value = workingDraft.endTime,
                         onClick = { timePickerTarget = EventTimeField.END },
-                        onClear = { endTime = "" },
+                        onClear = { updateDraft { it.copy(endTime = "") } },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -1306,18 +1373,18 @@ fun AddScheduleEventBottomSheet(
             }
 
             OutlinedTextField(
-                value = location,
-                onValueChange = { location = it },
-                label = { Text(if (selectedType == "EXAM") "考场（如：主楼A101）" else "地点/教室") },
+                value = workingDraft.location,
+                onValueChange = { value -> updateDraft { it.copy(location = value) } },
+                label = { Text(if (workingDraft.type == "EXAM") "考场（如：主楼A101）" else "地点/教室") },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             )
 
             OutlinedTextField(
-                value = detail,
-                onValueChange = { detail = it },
-                label = { Text(if (selectedType == "EXAM") "座位号 / 注意事项" else "备注 / 详情") },
+                value = workingDraft.detail,
+                onValueChange = { value -> updateDraft { it.copy(detail = value) } },
+                label = { Text(if (workingDraft.type == "EXAM") "座位号 / 注意事项" else "备注 / 详情") },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -1325,17 +1392,25 @@ fun AddScheduleEventBottomSheet(
 
             Button(
                 onClick = {
-                    val formStartTime = if (isAllDay) null else startTime.takeIf { it.isNotBlank() }
-                    val formEndTime = if (isAllDay) null else endTime.takeIf { it.isNotBlank() }
-                    val formLocation = location.takeIf { it.isNotBlank() }
-                    val formDetail = detail.takeIf { it.isNotBlank() }
+                    val formStartTime = if (workingDraft.isAllDay) {
+                        null
+                    } else {
+                        workingDraft.startTime.takeIf { it.isNotBlank() }
+                    }
+                    val formEndTime = if (workingDraft.isAllDay) {
+                        null
+                    } else {
+                        workingDraft.endTime.takeIf { it.isNotBlank() }
+                    }
+                    val formLocation = workingDraft.location.takeIf { it.isNotBlank() }
+                    val formDetail = workingDraft.detail.takeIf { it.isNotBlank() }
 
                     val base = initialEvent
                     if (base != null) {
                         onUpdate(
                             base.copy(
-                                title = title.trim(),
-                                type = selectedType,
+                                title = workingDraft.title.trim(),
+                                type = workingDraft.type,
                                 date = selectedDate.toString(),
                                 startTime = formStartTime,
                                 endTime = formEndTime,
@@ -1345,8 +1420,8 @@ fun AddScheduleEventBottomSheet(
                         )
                     } else {
                         onConfirm(
-                            title.trim(),
-                            selectedType,
+                            workingDraft.title.trim(),
+                            workingDraft.type,
                             selectedDate.toString(),
                             formStartTime,
                             formEndTime,
@@ -1355,7 +1430,7 @@ fun AddScheduleEventBottomSheet(
                         )
                     }
                 },
-                enabled = title.isNotBlank() && !timeRangeInvalid,
+                enabled = workingDraft.title.isNotBlank() && !timeRangeInvalid,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1401,9 +1476,10 @@ fun AddScheduleEventBottomSheet(
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            selectedDate = Instant.fromEpochMilliseconds(millis)
+                            val pickedDate = Instant.fromEpochMilliseconds(millis)
                                 .toLocalDateTime(TimeZone.UTC)
                                 .date
+                            updateDraft { it.copy(date = pickedDate.toString()) }
                         }
                         showDatePicker = false
                     }
@@ -1427,8 +1503,8 @@ fun AddScheduleEventBottomSheet(
     val pickerTarget = timePickerTarget
     if (pickerTarget != null) {
         val currentValue = when (pickerTarget) {
-            EventTimeField.START -> startTime
-            EventTimeField.END -> endTime
+            EventTimeField.START -> workingDraft.startTime
+            EventTimeField.END -> workingDraft.endTime
         }
         val (initialHour, initialMinute) = remember(pickerTarget, currentValue) {
             parseTimeOfDay(currentValue) ?: when (pickerTarget) {
@@ -1455,8 +1531,8 @@ fun AddScheduleEventBottomSheet(
                     onClick = {
                         val picked = formatTimeOfDay(timePickerState.hour, timePickerState.minute)
                         when (pickerTarget) {
-                            EventTimeField.START -> startTime = picked
-                            EventTimeField.END -> endTime = picked
+                            EventTimeField.START -> updateDraft { it.copy(startTime = picked) }
+                            EventTimeField.END -> updateDraft { it.copy(endTime = picked) }
                         }
                         timePickerTarget = null
                     }

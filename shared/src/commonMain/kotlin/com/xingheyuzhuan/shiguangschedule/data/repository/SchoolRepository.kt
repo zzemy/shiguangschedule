@@ -87,24 +87,54 @@ class SchoolRepository(
     }
 
     /**
+     * 南京邮电大学深度定制版内置适配器
+     */
+    private val BUILTIN_NJUPT_ADAPTER = Adapter(
+        adapter_id = "NJUPT_01",
+        adapter_name = "南京邮电大学正方教务",
+        category = AdapterCategory.BACHELOR_AND_ASSOCIATE,
+        asset_js_path = "njupt_01.js",
+        import_url = "http://jwglxt.njupt.edu.cn/sso/ddlogin",
+        description = "南京邮电大学正方教务系统（仙林/三牌楼校区本科通用）",
+        maintainer = "NJUPT"
+    )
+
+    private val BUILTIN_NJUPT_SCHOOL = School(
+        id = "NJUPT",
+        name = "南京邮电大学",
+        initial = "NJUPT",
+        resource_folder = "NJUPT",
+        adapters = listOf(BUILTIN_NJUPT_ADAPTER)
+    )
+
+    /**
      * 获取经过类别过滤与排序的学校列表（同步/单次获取）。
      */
     suspend fun getSchools(): List<School> {
-        val index = loadIndex() ?: return emptyList()
+        val index = loadIndex()
+        val schools = index?.schools?.toMutableList() ?: mutableListOf()
+        if (schools.none { it.id == "NJUPT" }) {
+            schools.add(0, BUILTIN_NJUPT_SCHOOL)
+        }
 
-        val filteredSchools = index.schools.filter { school ->
+        val filteredSchools = schools.filter { school ->
             school.adapters.any { adapter ->
                 adapter.category in RELEVANT_MENU_CATEGORIES
             }
         }
 
-        return filteredSchools.sortedBy { it.initial.uppercase() + it.name }
+        return filteredSchools.sortedWith(
+            compareBy<School> { it.id != "NJUPT" }.thenBy { it.initial.uppercase() + it.name }
+        )
     }
 
     /**
      * 【二级页面数据】根据学校 ID 获取其所有的适配器列表。
      */
     suspend fun getAdaptersForSchool(schoolId: String): List<Adapter> {
+        if (schoolId == "NJUPT") {
+            return listOf(BUILTIN_NJUPT_ADAPTER)
+        }
         return withContext(Dispatchers.IO) {
             val index = loadIndex()
             val school = index?.schools?.find { it.id == schoolId }
@@ -116,6 +146,9 @@ class SchoolRepository(
      * 辅助方法：通过 ID 获取单个学校对象
      */
     suspend fun getSchoolById(id: String): School? {
+        if (id == "NJUPT") {
+            return BUILTIN_NJUPT_SCHOOL
+        }
         return withContext(Dispatchers.IO) {
             val index = loadIndex()
             return@withContext index?.schools?.find { it.id == id }

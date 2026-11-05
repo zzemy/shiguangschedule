@@ -49,6 +49,8 @@ object SmartScheduleParser {
 
     private val ISO_DATE_REGEX =
         Regex("""(?<!\d)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)""")
+    private val SHORT_DATE_DOT_REGEX =
+        Regex("""(?<!\d)(\d{1,2})[./](\d{1,2})(?:[日号])?(?!\d)""")
     private val CN_FULL_DATE_REGEX =
         Regex("""(?<!\d)(\d{4})年(\d{1,2})月(\d{1,2})[日号]?""")
     private val EVENING_DATE_REGEX = Regex("(大后晚|后晚|明晚|今晚)")
@@ -56,6 +58,9 @@ object SmartScheduleParser {
     private val MONTH_DAY_REGEX = Regex("""(?<!\d)(\d{1,2})月(\d{1,2})[日号]""")
     private val NEXT_WEEK_REGEX = Regex("下(?:周|星期|礼拜)([一二三四五六日天])")
     private val WEEK_REGEX = Regex("(?:周|星期|礼拜)([一二三四五六日天])")
+
+    // 南邮大学特色口语化时段词：早八、下午两节、晚自习
+    private val COLLOQUIAL_TIME_REGEX = Regex("(早八|下午两节|晚自习)")
 
     private val CLOCK_TIME_REGEX = Regex(
         """(凌晨|早上|上午|中午|下午|傍晚|晚上|夜里)?\s*""" +
@@ -76,13 +81,14 @@ object SmartScheduleParser {
         """去\s*([^，,。；;、！？!?]{1,20}?)""" +
             """(?=\s*(?:上课|考试|开会|自习|参加|做|看|吃|集合|见|拿|取|办理|$|[，,。；;！？!?]))"""
     )
+    // 南邮教学楼精确限定：教一至教四（教1~教4）、实验楼、通达馆、圆楼、文科楼、理科楼、安恒大厦、图书馆、体育馆等
     private val ROOM_LOCATION_REGEX = Regex(
-        """(?:教学楼|实验楼|主楼|综合楼|实训楼|信息楼|文科楼|理科楼|图书馆|体育馆|礼堂|食堂|操场|会议室|教)""" +
-            """\s*[一二三四五六七八九十\d]{0,3}\s*[-－—]?\s*[A-Za-z]?\d{2,4}\s*(?:教室|室)?"""
+        """(?:教[1-4一二三四]|教学[1-4一二三四]楼|实验[楼室]|通达馆|圆楼|文科楼|理科楼|安恒大厦|安恒|图书馆|体育馆|礼堂|食堂|会议室)""" +
+            """\s*[-－—]?\s*[A-Za-z]?\d{2,4}\s*(?:教室|室)?"""
     )
     private val PLAIN_LOCATION_REGEX = Regex(
-        "主楼|实验楼|实验室|图书馆|体育馆|礼堂|食堂|操场|会议室|教学楼|综合楼|实训楼|" +
-            "信息楼|文科楼|理科楼|宿舍"
+        "教[1-4一二三四]|教学[1-4一二三四]楼|实验楼|实验室|图书馆|体育馆|礼堂|食堂|操场|会议室|" +
+            "文科楼|理科楼|安恒大厦|安恒|通达馆|通达|圆楼|鼎山|战邮广场|南操|风雨操场|学一食堂|学二食堂|学三食堂"
     )
     private val LOCATION_VERB_REGEX = Regex(
         "上课|考试|开会|自习|参加|想|说|做|看|吃|写|复习|学习|工作|睡|玩"
@@ -165,6 +171,24 @@ object SmartScheduleParser {
             connectorRange?.let { removals += it }
         }
 
+        val colloquialMatch = COLLOQUIAL_TIME_REGEX.find(text)
+        if (colloquialMatch != null && timeTokens.isEmpty()) {
+            when (colloquialMatch.value) {
+                "早八" -> {
+                    startMinutes = 8 * 60
+                    endMinutes = 9 * 60 + 35
+                }
+                "下午两节" -> {
+                    startMinutes = 13 * 60 + 45
+                    endMinutes = 15 * 60 + 20
+                }
+                "晚自习" -> {
+                    startMinutes = 19 * 60
+                    endMinutes = 21 * 60
+                }
+            }
+            removals += colloquialMatch.range
+        }
         val locationMatch = findLocation(text)
         locationMatch?.removalRange?.let { removals += it }
 
@@ -224,6 +248,18 @@ object SmartScheduleParser {
                 return DateMatch(candidate, match.range)
             }
             return DateMatch(null, match.range)
+        }
+
+        SHORT_DATE_DOT_REGEX.find(text)?.let { match ->
+            val month = parseNumber(match.groupValues[1])
+            val day = parseNumber(match.groupValues[2])
+            if (month != null && day != null && month in 1..12 && day in 1..31) {
+                var candidate = buildDate(today.year, month, day)
+                if (candidate != null && candidate < today) {
+                    candidate = buildDate(today.year + 1, month, day)
+                }
+                return DateMatch(candidate, match.range)
+            }
         }
 
         NEXT_WEEK_REGEX.find(text)?.let { match ->

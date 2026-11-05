@@ -48,7 +48,6 @@ import shiguangschedule.shared.generated.resources.arrow_back_24px
 import shiguangschedule.shared.generated.resources.code_24px
 import shiguangschedule.shared.generated.resources.home_24px
 import shiguangschedule.shared.generated.resources.item_check_software_update
-import shiguangschedule.shared.generated.resources.item_contributors
 import shiguangschedule.shared.generated.resources.item_github_repo
 import shiguangschedule.shared.generated.resources.item_language_settings
 import shiguangschedule.shared.generated.resources.item_open_source_licenses
@@ -58,7 +57,6 @@ import shiguangschedule.shared.generated.resources.label_version_prefix
 import shiguangschedule.shared.generated.resources.language_24px
 import shiguangschedule.shared.generated.resources.list_alt_24px
 import shiguangschedule.shared.generated.resources.palette_24px
-import shiguangschedule.shared.generated.resources.people_alt_24px
 import shiguangschedule.shared.generated.resources.theme_settings_title
 import shiguangschedule.shared.generated.resources.title_more_options
 import shiguangschedule.shared.generated.resources.update_24px
@@ -220,14 +218,7 @@ fun MoreOptionsScreen(
                     SettingListItem(
                         icon = vectorResource(Res.drawable.update_24px),
                         title = stringResource(Res.string.item_update_repo),
-                        onClick = { onNavigate(Destination.UpdateRepo) }
-                    )
-
-                    // 贡献者
-                    SettingListItem(
-                        icon = vectorResource(Res.drawable.people_alt_24px),
-                        title = stringResource(Res.string.item_contributors),
-                        onClick = { onNavigate(Destination.ContributionList) },
+                        onClick = { onNavigate(Destination.UpdateRepo) },
                         showDivider = false
                     )
 

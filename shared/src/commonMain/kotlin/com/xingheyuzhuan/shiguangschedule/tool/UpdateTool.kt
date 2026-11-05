@@ -70,16 +70,20 @@ class UpdateChecker(
         private val GITHUB_API_URL =
             "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
 
-        /** 直连与代理镜像按顺序尝试，直连失败时自动切换。 */
+        /** 直连与代理镜像按顺序尝试，优先使用免 rate limit 的静态版本分发源。 */
         private val GITHUB_ENDPOINTS = listOf(
+            GitHubEndpoint(
+                apiUrl = "https://raw.githubusercontent.com/$GITHUB_REPO/njupt/version.json",
+                proxyPrefix = null
+            ),
+            GitHubEndpoint(
+                apiUrl = "https://cdn.jsdelivr.net/gh/$GITHUB_REPO@njupt/version.json",
+                proxyPrefix = null
+            ),
             GitHubEndpoint(apiUrl = GITHUB_API_URL, proxyPrefix = null),
             GitHubEndpoint(
                 apiUrl = "https://mirror.ghproxy.com/$GITHUB_API_URL",
                 proxyPrefix = "https://mirror.ghproxy.com/"
-            ),
-            GitHubEndpoint(
-                apiUrl = "https://ghfast.top/$GITHUB_API_URL",
-                proxyPrefix = "https://ghfast.top/"
             )
         )
 
