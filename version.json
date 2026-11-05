@@ -1,12 +1,12 @@
 {
-  "tag_name": "v2.1.0-njupt.5",
-  "version_name": "2.1.0-njupt.5",
-  "body": "1. 纠正桌面小组件考试真实起止时间展示（如 08:00 - 09:50），不再显示 00:00-23:59\n2. 小组件倒计时全天保持置顶展示，底层豁免已结束过滤\n3. 小组件右上角精准统计今日剩余课数，不再将倒计时计入课程数\n4. 添加日程支持表单草稿记忆，手滑误关自动保留内容\n5. 彻底移除失效的贡献者列表入口\n6. 优化检查更新网络通道，彻底解决 GitHub 403 访问受限\n7. 增强自然语言日程识别能力，支持早八、下午两节、晚自习及南邮各大教学楼地标",
-  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.5",
+  "tag_name": "v2.1.0-njupt.6",
+  "version_name": "2.1.0-njupt.6",
+  "body": "1. 新增【全周大课表】桌面小组件（4x4 / 5x4），整周 7 列排课一览无余，支持今日星期高亮与直接点进课程\n2. 新增【专属日程与考试待办】桌面小组件（4x2 / 4x3），独立展示考试倒计时大胶囊及今日/未来待办事项\n3. 优化小组件数据同步器，自动扩充覆盖当前自然周（周一至周日全 7 天）\n4. 修复小组件考试倒计时时间显示与全天置顶\n5. 日程表单支持草稿防丢，优化更新检测网络通道",
+  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.6",
   "assets": [
     {
-      "name": "shiguangschedule-v2.1.0-njupt.5-arm64-v8a-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.5/shiguangschedule-v2.1.0-njupt.5-arm64-v8a-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.6-arm64-v8a-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.6/shiguangschedule-v2.1.0-njupt.6-arm64-v8a-release.apk"
     }
   ]
 }

@@ -208,15 +208,22 @@ class WidgetDataSynchronizer(
         val alignedSemesterStartDate = getStartDayOfWeek(semesterStartDate, firstDayOfWeekInt)
 
         val widgetCourses = mutableListOf<WidgetCourse>()
+        val isoWeekStartDate = today.minus(today.dayOfWeek.isoDayNumber - 1, DateTimeUnit.DAY)
         val startSyncDate = if (today < alignedSemesterStartDate) {
             alignedSemesterStartDate
         } else {
-            today
+            // 覆盖当前自然周（周一至周日），保证全周课表能看到本周已过去的课程
+            isoWeekStartDate
         }
+        val endSyncDate = maxOf(
+            today.plus(widgetSyncDays - 1, DateTimeUnit.DAY),
+            startSyncDate.plus(widgetSyncDays - 1, DateTimeUnit.DAY)
+        )
 
-        // 循环计算未来指定天数（widgetSyncDays）内的课程安排
-        for (i in 0 until widgetSyncDays) {
-            val date = startSyncDate.plus(i, DateTimeUnit.DAY)
+        // 循环计算当前自然周及未来指定天数内的课程安排
+        val syncDayCount = startSyncDate.daysUntil(endSyncDate) + 1
+        for (dayOffset in 0 until syncDayCount) {
+            val date = startSyncDate.plus(dayOffset, DateTimeUnit.DAY)
             val dateString = date.toString()
 
             // 同步当天日程事件（考试、补课、未完成的每日待办）
@@ -264,7 +271,7 @@ class WidgetDataSynchronizer(
             }
 
             // 如果当天是今天，且今天没有考试，检查未来是否有未开始的考试，将最近考试倒计时作为重要待办同步进小组件
-            if (i == 0) {
+            if (date == today) {
                 val todayExams = events.filter { it.type == "EXAM" }
                 if (todayExams.isEmpty()) {
                     val upcomingExams = scheduleEventRepository.getUpcomingExamsFlow(tableId, dateString).first()

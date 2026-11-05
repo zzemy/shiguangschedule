@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/item_root_agenda_dark"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="46dp"
+    android:orientation="horizontal"
+    android:paddingHorizontal="4dp"
+    android:paddingVertical="5dp">
+
+    <!-- 时间区域：日期标签 + 起止时间 -->
+    <LinearLayout
+        android:layout_width="46dp"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_item_date_tag_dark"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:includeFontPadding="false"
+            android:textColor="@color/widget_text_hint"
+            android:textSize="8dp"
+            tools:text="今天" />
+
+        <TextView
+            android:id="@+id/tv_item_time_dark"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:includeFontPadding="false"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="10.5dp"
+            android:textStyle="bold"
+            tools:text="09:00" />
+
+        <TextView
+            android:id="@+id/tv_item_end_time_dark"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:includeFontPadding="false"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="8.5dp"
+            tools:text="10:30" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/divider_vertical_dark"
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:layout_marginHorizontal="7dp"
+        android:background="@color/widget_divider" />
+
+    <!-- 内容区域：分类徽章 + 标题 + 地点 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_item_badge_dark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/widget_agenda_badge_todo"
+                android:includeFontPadding="false"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="1dp"
+                android:textColor="#1A73E8"
+                android:textSize="8dp"
+                android:textStyle="bold"
+                tools:text="待办" />
+
+            <TextView
+                android:id="@+id/tv_item_title_dark"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="12.5dp"
+                android:textStyle="bold"
+                tools:text="交微积分作业" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tv_item_location_dark"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="9.5dp"
+            tools:text="📍 教一 302" />
+    </LinearLayout>
+</LinearLayout>

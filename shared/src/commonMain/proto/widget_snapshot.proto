@@ -28,4 +28,5 @@ message WidgetSnapshot {
 
   int32 days_until_term_start = 4;
   int32 first_day_of_week = 5;
+  int32 total_weeks = 6;
 }

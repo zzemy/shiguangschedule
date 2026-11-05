@@ -9,6 +9,8 @@ import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
 import com.xingheyuzhuan.shiguangschedule.data.model.toProto
 import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.WidgetRepository
+import com.xingheyuzhuan.shiguangschedule.widget.agenda.AgendaNativeProvider
+import com.xingheyuzhuan.shiguangschedule.widget.agenda.AgendaNativeRenderer
 import com.xingheyuzhuan.shiguangschedule.widget.compact.CompactNativeProvider
 import com.xingheyuzhuan.shiguangschedule.widget.compact.CompactNativeRenderer
 import com.xingheyuzhuan.shiguangschedule.widget.double_days.DoubleDaysNativeProvider
@@ -17,6 +19,8 @@ import com.xingheyuzhuan.shiguangschedule.widget.list_vertical.ListVerticalNativ
 import com.xingheyuzhuan.shiguangschedule.widget.list_vertical.ListVerticalNativeRenderer
 import com.xingheyuzhuan.shiguangschedule.widget.tiny.TinyNativeProvider
 import com.xingheyuzhuan.shiguangschedule.widget.tiny.TinyNativeRenderer
+import com.xingheyuzhuan.shiguangschedule.widget.weekly.WeeklyTableNativeProvider
+import com.xingheyuzhuan.shiguangschedule.widget.weekly.WeeklyTableNativeRenderer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -79,10 +83,11 @@ private suspend fun realUpdateAllWidgets(context: Context) {
 
         // 2. 准备基础数据
         val today = LocalDate.now()
-        val tomorrow = today.plusDays(1)
+        val weekStart = today.minusDays((today.dayOfWeek.value - 1).toLong())
+        val widgetWindowEnd = today.plusDays(7)
 
         val dbCourses = withTimeoutOrNull(3.seconds) {
-            repository.getWidgetCoursesByDateRange(today.toString(), tomorrow.toString()).first()
+            repository.getWidgetCoursesByDateRange(weekStart.toString(), widgetWindowEnd.toString()).first()
         } ?: emptyList()
 
         val currentWeek = withTimeoutOrNull(2.seconds) {
@@ -136,7 +141,8 @@ private suspend fun realUpdateAllWidgets(context: Context) {
             style = finalStyleToSync,
             courses = courseProtoList,
             days_until_term_start = daysUntilTermStart,
-            first_day_of_week = firstDayOfWeek
+            first_day_of_week = firstDayOfWeek,
+            total_weeks = appSettings?.semesterTotalWeeks ?: 0
         )
 
         // 4. 定义所有原生尺寸的映射列表
@@ -146,7 +152,9 @@ private suspend fun realUpdateAllWidgets(context: Context) {
             TinyNativeProvider::class.java to { ctx, snap, id -> TinyNativeRenderer.render(ctx, snap, id) },
             CompactNativeProvider::class.java to { ctx, snap, id -> CompactNativeRenderer.render(ctx, snap, id) },
             DoubleDaysNativeProvider::class.java to { ctx, snap, id -> DoubleDaysNativeRenderer.render(ctx, snap, id) },
-            ListVerticalNativeProvider::class.java to { ctx, snap, id -> ListVerticalNativeRenderer.render(ctx, snap, id) }
+            ListVerticalNativeProvider::class.java to { ctx, snap, id -> ListVerticalNativeRenderer.render(ctx, snap, id) },
+            AgendaNativeProvider::class.java to { ctx, snap, id -> AgendaNativeRenderer.render(ctx, snap, id) },
+            WeeklyTableNativeProvider::class.java to { ctx, snap, id -> WeeklyTableNativeRenderer.render(ctx, snap, id) }
         )
 
         // 5. 统一分发更新
