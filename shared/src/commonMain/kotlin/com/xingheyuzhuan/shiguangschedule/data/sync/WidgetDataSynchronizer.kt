@@ -213,7 +213,7 @@ class WidgetDataSynchronizer(
             alignedSemesterStartDate
         } else {
             // 覆盖当前自然周（周一至周日），保证全周课表能看到本周已过去的课程
-            isoWeekStartDate
+            maxOf(isoWeekStartDate, alignedSemesterStartDate)
         }
         val endSyncDate = maxOf(
             today.plus(widgetSyncDays - 1, DateTimeUnit.DAY),

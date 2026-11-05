@@ -20,7 +20,7 @@ import com.xingheyuzhuan.shiguangschedule.MainActivity
 import com.xingheyuzhuan.shiguangschedule.R
 import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.WidgetThemeModeProto
 import com.xingheyuzhuan.shiguangschedule.tool.createMaterialKolorScheme
-import com.xingheyuzhuan.shiguangschedule.widget.WidgetCourseProto
+import com.xingheyuzhuan.shiguangschedule.widget.WidgetAgendaItemProto
 import com.xingheyuzhuan.shiguangschedule.widget.WidgetSnapshot
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -32,11 +32,12 @@ import java.time.temporal.ChronoUnit
 object AgendaNativeRenderer {
 
     private val DATE_FORMATTER = DateTimeFormatter.ofPattern("MM.dd")
-    private val COUNTDOWN_DAYS_REGEX = Regex("""\(还有(\d+)天\)""")
 
     private const val MAX_AGENDA_ITEMS = 50
 
-    private val PILL_TEXT_COLOR = 0xFFB45309.toInt()
+    private const val COLOR_TODO = 0xFF1A73E8.toInt()
+    private const val COLOR_EXAM = 0xFFE5484D.toInt()
+    private const val COLOR_SCHEDULE = 0xFF2E7D32.toInt()
 
     /**
      * 日程节点分类，同时携带徽章文案、背景与文字颜色
@@ -46,9 +47,9 @@ object AgendaNativeRenderer {
         @DrawableRes val badgeBackgroundRes: Int,
         @ColorInt val badgeTextColor: Int
     ) {
-        TODO(R.string.widget_agenda_badge_todo, R.drawable.widget_agenda_badge_todo, 0xFF1A73E8.toInt()),
-        EXAM(R.string.widget_agenda_badge_exam, R.drawable.widget_agenda_badge_exam, 0xFFD93025.toInt()),
-        SCHEDULE(R.string.widget_agenda_badge_schedule, R.drawable.widget_agenda_badge_schedule, 0xFF137333.toInt())
+        TODO(R.string.widget_agenda_badge_todo, R.drawable.widget_agenda_badge_todo, COLOR_TODO),
+        EXAM(R.string.widget_agenda_badge_exam, R.drawable.widget_agenda_badge_exam, COLOR_EXAM),
+        SCHEDULE(R.string.widget_agenda_badge_schedule, R.drawable.widget_agenda_badge_schedule, COLOR_SCHEDULE)
     }
 
     private data class AgendaItem(
@@ -58,7 +59,8 @@ object AgendaNativeRenderer {
         val date: LocalDate,
         val startTime: String,
         val endTime: String,
-        val location: String
+        val location: String,
+        val daysLeft: Int
     )
 
     private data class ContentColors(
@@ -74,6 +76,7 @@ object AgendaNativeRenderer {
         val endTime: Int,
         val badge: Int,
         val title: Int,
+        val countdown: Int,
         val location: Int
     )
 
@@ -84,6 +87,7 @@ object AgendaNativeRenderer {
         endTime = R.id.tv_item_end_time,
         badge = R.id.tv_item_badge,
         title = R.id.tv_item_title,
+        countdown = R.id.tv_item_countdown,
         location = R.id.tv_item_location
     )
 
@@ -94,6 +98,7 @@ object AgendaNativeRenderer {
         endTime = R.id.tv_item_end_time_dark,
         badge = R.id.tv_item_badge_dark,
         title = R.id.tv_item_title_dark,
+        countdown = R.id.tv_item_countdown_dark,
         location = R.id.tv_item_location_dark
     )
 
@@ -132,19 +137,19 @@ object AgendaNativeRenderer {
         rv.setTextViewText(R.id.tv_header_title, headerText)
         rv.setTextViewText(R.id.tv_header_title_dark, headerText)
 
-        renderNearestExamCountdown(context, rv, snapshot.courses, today)
+        renderNearestExamCountdown(context, rv, snapshot.agenda_items, today)
 
-        val agendaItems = snapshot.courses
+        val agendaItems = snapshot.agenda_items
             .asSequence()
-            .mapNotNull { course -> toAgendaItem(course, today) }
-            .sortedWith(compareBy<AgendaItem> { it.date }.thenBy { item -> item.startTime.ifBlank { "00:00" } })
+            .mapNotNull { item -> toAgendaItem(item, today) }
+            .sortedWith(compareBy<AgendaItem> { it.date }.thenBy { item -> item.startTime.ifBlank { "99:99" } })
             .take(MAX_AGENDA_ITEMS)
             .toList()
 
         if (agendaItems.isEmpty()) {
             showEmptyState(rv)
         } else {
-            renderAgendaList(context, rv, appWidgetId, snapshot, agendaItems, today, lightColors, darkColors)
+            renderAgendaList(context, rv, appWidgetId, snapshot, agendaItems, lightColors, darkColors)
         }
 
         return rv
@@ -186,10 +191,10 @@ object AgendaNativeRenderer {
     private fun renderNearestExamCountdown(
         context: Context,
         rv: RemoteViews,
-        courses: List<WidgetCourseProto>,
+        items: List<WidgetAgendaItemProto>,
         today: LocalDate
     ) {
-        val daysUntilExam = findNearestExam(courses, today) ?: return
+        val daysUntilExam = findNearestExam(items, today) ?: return
         val text = if (daysUntilExam <= 0) {
             context.getString(R.string.widget_agenda_exam_today)
         } else {
@@ -198,83 +203,50 @@ object AgendaNativeRenderer {
 
         rv.setViewVisibility(R.id.tv_exam_countdown, View.VISIBLE)
         rv.setTextViewText(R.id.tv_exam_countdown, text)
-        rv.setTextColor(R.id.tv_exam_countdown, PILL_TEXT_COLOR)
 
         rv.setViewVisibility(R.id.tv_exam_countdown_dark, View.VISIBLE)
         rv.setTextViewText(R.id.tv_exam_countdown_dark, text)
-        rv.setTextColor(R.id.tv_exam_countdown_dark, PILL_TEXT_COLOR)
     }
 
     /**
-     * 查找最近的考试（优先复用同步器生成的倒计时条目，其次使用考试条目）
+     * 查找距离今天最近的未来考试
      */
-    private fun findNearestExam(courses: List<WidgetCourseProto>, today: LocalDate): Int? {
-        val candidates = mutableListOf<Int>()
-
-        courses.forEach { course ->
-            when {
-                course.id.startsWith("countdown-") -> {
-                    val days = COUNTDOWN_DAYS_REGEX.find(course.name)
-                        ?.groupValues
-                        ?.getOrNull(1)
-                        ?.toIntOrNull()
-                        ?: parseDate(course.position.substringBefore(" · "))
-                            ?.let { examDate -> ChronoUnit.DAYS.between(today, examDate).toInt() }
-
-                    if (days != null && days >= 0) {
-                        candidates += days
-                    }
-                }
-
-                course.id.startsWith("exam-") && !course.is_skipped -> {
-                    val examDate = parseDate(course.date) ?: return@forEach
-                    val days = ChronoUnit.DAYS.between(today, examDate).toInt()
-                    if (days >= 0) {
-                        candidates += days
-                    }
-                }
-            }
-        }
-
-        return candidates.minOrNull()
+    private fun findNearestExam(items: List<WidgetAgendaItemProto>, today: LocalDate): Int? {
+        return items.asSequence()
+            .filter { it.type.equals("EXAM", ignoreCase = true) }
+            .mapNotNull { parseDate(it.date) }
+            .map { examDate -> ChronoUnit.DAYS.between(today, examDate).toInt() }
+            .filter { days -> days >= 0 }
+            .minOrNull()
     }
 
     /**
-     * 将 Widget 课程条目转换为日程节点，仅保留待办、考试与补课事件
+     * 将快照中的日程事件转换为可渲染节点
      */
-    private fun toAgendaItem(course: WidgetCourseProto, today: LocalDate): AgendaItem? {
-        if (course.is_skipped) return null
+    private fun toAgendaItem(item: WidgetAgendaItemProto, today: LocalDate): AgendaItem? {
+        val date = parseDate(item.date) ?: return null
+        val daysLeft = ChronoUnit.DAYS.between(today, date).toInt()
+        if (daysLeft < 0) return null
 
         val kind = when {
-            course.id.startsWith("daily-") -> AgendaKind.TODO
-            course.id.startsWith("exam-") -> AgendaKind.EXAM
-            course.id.startsWith("makeup-") -> AgendaKind.SCHEDULE
-            else -> return null
+            item.type.equals("EXAM", ignoreCase = true) -> AgendaKind.EXAM
+            item.type.equals("DAILY", ignoreCase = true) -> AgendaKind.TODO
+            else -> AgendaKind.SCHEDULE
         }
 
-        val date = parseDate(course.date) ?: return null
-        if (date < today) return null
-
-        val title = cleanTitle(course.name)
+        val title = item.title.trim()
         if (title.isBlank()) return null
 
         return AgendaItem(
-            id = course.id,
+            id = item.id,
             title = title,
             kind = kind,
             date = date,
-            startTime = course.start_time,
-            endTime = course.end_time,
-            location = course.position
+            startTime = item.start_time,
+            endTime = item.end_time,
+            location = item.location,
+            daysLeft = daysLeft
         )
-    }
-
-    /**
-     * 移除同步器写入的图标与分类前缀，得到纯标题
-     */
-    private fun cleanTitle(name: String): String {
-        val withoutPrefix = name.substringAfter("] ", name)
-        return withoutPrefix.substringBefore(" (还有").trim().ifBlank { name.trim() }
     }
 
     private fun parseDate(value: String): LocalDate? = try {
@@ -292,7 +264,6 @@ object AgendaNativeRenderer {
         appWidgetId: Int,
         snapshot: WidgetSnapshot,
         items: List<AgendaItem>,
-        today: LocalDate,
         lightColors: ContentColors,
         darkColors: ContentColors
     ) {
@@ -304,7 +275,7 @@ object AgendaNativeRenderer {
         val builder = RemoteViewsCompat.RemoteCollectionItems.Builder()
 
         items.forEachIndexed { index, item ->
-            val itemRv = createAgendaItemView(context, snapshot, item, today, lightColors, darkColors)
+            val itemRv = createAgendaItemView(context, snapshot, item, lightColors, darkColors)
 
             val fillInIntent = Intent().apply { putExtra("agenda_id", item.id) }
             itemRv.setOnClickFillInIntent(LIGHT_ITEM_IDS.root, fillInIntent)
@@ -340,7 +311,6 @@ object AgendaNativeRenderer {
         context: Context,
         snapshot: WidgetSnapshot,
         item: AgendaItem,
-        today: LocalDate,
         lightColors: ContentColors,
         darkColors: ContentColors
     ): RemoteViews {
@@ -354,14 +324,21 @@ object AgendaNativeRenderer {
         val locationText = item.location.trim().let { location ->
             if (location.isBlank()) "" else "📍 $location"
         }
-        val dateTag = when (ChronoUnit.DAYS.between(today, item.date).toInt()) {
-            0 -> context.getString(R.string.widget_title_today)
-            1 -> context.getString(R.string.widget_title_tomorrow)
-            else -> item.date.format(DATE_FORMATTER)
+        val dateTag = item.date.format(DATE_FORMATTER)
+        val countdownText = if (item.daysLeft <= 0) {
+            context.getString(R.string.widget_title_today)
+        } else {
+            context.getString(R.string.widget_agenda_days_left, item.daysLeft)
         }
 
-        bindItemGroup(rv, LIGHT_ITEM_IDS, lightColors, item.kind, item.title, badgeText, dateTag, timeText, endTimeText, locationText, scale)
-        bindItemGroup(rv, DARK_ITEM_IDS, darkColors, item.kind, item.title, badgeText, dateTag, timeText, endTimeText, locationText, scale)
+        bindItemGroup(
+            rv, LIGHT_ITEM_IDS, lightColors, item.kind, item.title, badgeText,
+            dateTag, timeText, endTimeText, countdownText, locationText, scale
+        )
+        bindItemGroup(
+            rv, DARK_ITEM_IDS, darkColors, item.kind, item.title, badgeText,
+            dateTag, timeText, endTimeText, countdownText, locationText, scale
+        )
 
         return rv
     }
@@ -379,12 +356,13 @@ object AgendaNativeRenderer {
         dateTag: String,
         timeText: String,
         endTimeText: String,
+        countdownText: String,
         locationText: String,
         scale: Float
     ) {
         rv.setTextViewText(ids.dateTag, dateTag)
         rv.setTextColor(ids.dateTag, colors.secondaryTextColor)
-        rv.setTextViewTextSize(ids.dateTag, TypedValue.COMPLEX_UNIT_DIP, 8f * scale)
+        rv.setTextViewTextSize(ids.dateTag, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
 
         rv.setTextViewText(ids.time, timeText)
         rv.setTextColor(ids.time, colors.primaryTextColor)
@@ -407,6 +385,10 @@ object AgendaNativeRenderer {
         rv.setTextViewText(ids.title, title)
         rv.setTextColor(ids.title, colors.primaryTextColor)
         rv.setTextViewTextSize(ids.title, TypedValue.COMPLEX_UNIT_DIP, 12.5f * scale)
+
+        rv.setTextViewText(ids.countdown, countdownText)
+        rv.setTextColor(ids.countdown, kind.badgeTextColor)
+        rv.setTextViewTextSize(ids.countdown, TypedValue.COMPLEX_UNIT_DIP, 8.5f * scale)
 
         if (locationText.isNotBlank()) {
             rv.setViewVisibility(ids.location, View.VISIBLE)
@@ -474,6 +456,7 @@ object AgendaNativeRenderer {
         rv.setTextColor(headerTitleId, colors.primaryTextColor)
         rv.setTextViewTextSize(headerTitleId, TypedValue.COMPLEX_UNIT_DIP, 15f * scale)
 
+        rv.setTextColor(examCountdownId, COLOR_EXAM)
         rv.setTextViewTextSize(examCountdownId, TypedValue.COMPLEX_UNIT_DIP, 10f * scale)
 
         rv.setTextColor(emptyIconId, colors.secondaryTextColor)

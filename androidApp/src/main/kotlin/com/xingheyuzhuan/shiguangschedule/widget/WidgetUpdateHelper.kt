@@ -5,10 +5,15 @@ import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import android.widget.RemoteViews
+import com.xingheyuzhuan.shiguangschedule.data.db.main.ScheduleEvent
 import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
 import com.xingheyuzhuan.shiguangschedule.data.model.toProto
+import com.xingheyuzhuan.shiguangschedule.data.repository.AppSettingsRepository
+import com.xingheyuzhuan.shiguangschedule.data.repository.ScheduleEventRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.WidgetRepository
+import com.xingheyuzhuan.shiguangschedule.widget.agenda.AgendaCompactNativeProvider
+import com.xingheyuzhuan.shiguangschedule.widget.agenda.AgendaCompactNativeRenderer
 import com.xingheyuzhuan.shiguangschedule.widget.agenda.AgendaNativeProvider
 import com.xingheyuzhuan.shiguangschedule.widget.agenda.AgendaNativeRenderer
 import com.xingheyuzhuan.shiguangschedule.widget.compact.CompactNativeProvider
@@ -19,8 +24,6 @@ import com.xingheyuzhuan.shiguangschedule.widget.list_vertical.ListVerticalNativ
 import com.xingheyuzhuan.shiguangschedule.widget.list_vertical.ListVerticalNativeRenderer
 import com.xingheyuzhuan.shiguangschedule.widget.tiny.TinyNativeProvider
 import com.xingheyuzhuan.shiguangschedule.widget.tiny.TinyNativeRenderer
-import com.xingheyuzhuan.shiguangschedule.widget.weekly.WeeklyTableNativeProvider
-import com.xingheyuzhuan.shiguangschedule.widget.weekly.WeeklyTableNativeRenderer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,6 +34,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -41,6 +45,8 @@ private typealias RenderFunc = (Context, WidgetSnapshot, Int) -> RemoteViews
 private object WidgetDependencyContainer : KoinComponent {
     val repository: WidgetRepository by inject()
     val styleSettingsRepository: StyleSettingsRepository by inject()
+    val appSettingsRepository: AppSettingsRepository by inject()
+    val scheduleEventRepository: ScheduleEventRepository by inject()
 }
 
 /**
@@ -80,6 +86,8 @@ private suspend fun realUpdateAllWidgets(context: Context) {
         // 1. 从 Koin 容器中动态获取单例化的仓库
         val repository = WidgetDependencyContainer.repository
         val styleSettingsRepository = WidgetDependencyContainer.styleSettingsRepository
+        val appSettingsRepository = WidgetDependencyContainer.appSettingsRepository
+        val scheduleEventRepository = WidgetDependencyContainer.scheduleEventRepository
 
         // 2. 准备基础数据
         val today = LocalDate.now()
@@ -104,6 +112,53 @@ private suspend fun realUpdateAllWidgets(context: Context) {
         }
 
         val finalStyleToSync = currentStyle?.toProto() ?: ScheduleGridStyle.DEFAULT.toProto()
+
+        // 独立提取日程看板所需事件：考试、补课/日程与未完成待办，与课程数据彻底解耦
+        val mainAppSettings = withTimeoutOrNull(2.seconds) {
+            appSettingsRepository.getAppSettingsOnce()
+        }
+        val agendaEvents: List<ScheduleEvent> = run {
+            val tableId = mainAppSettings?.currentCourseTableId.orEmpty()
+            if (tableId.isNotEmpty()) {
+                withTimeoutOrNull(3.seconds) {
+                    scheduleEventRepository
+                        .getUpcomingAgendaEventsFlow(tableId, today.toString())
+                        .first()
+                } ?: emptyList()
+            } else {
+                emptyList()
+            }
+        }
+
+        val agendaItems: List<WidgetAgendaItemProto> = agendaEvents.mapNotNull { event: ScheduleEvent ->
+            val eventDate = try {
+                LocalDate.parse(event.date)
+            } catch (_: Exception) {
+                return@mapNotNull null
+            }
+            val daysLeft = ChronoUnit.DAYS.between(today, eventDate).toInt()
+            if (daysLeft < 0) return@mapNotNull null
+
+            WidgetAgendaItemProto(
+                id = event.id,
+                title = event.title,
+                type = when (event.type) {
+                    "EXAM" -> "EXAM"
+                    "DAILY" -> "DAILY"
+                    else -> "CUSTOM"
+                },
+                date = event.date,
+                start_time = event.startTime.orEmpty(),
+                end_time = event.endTime.orEmpty(),
+                location = listOfNotNull(event.location, event.detail)
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .joinToString(" · "),
+                days_left = daysLeft
+            )
+        }.sortedWith(
+            compareBy<WidgetAgendaItemProto> { it.date }.thenBy { it.start_time.ifBlank { "99:99" } }
+        )
 
         // 计算开学倒计时天数
         val semesterStartDateStr = appSettings?.semesterStartDate
@@ -142,7 +197,8 @@ private suspend fun realUpdateAllWidgets(context: Context) {
             courses = courseProtoList,
             days_until_term_start = daysUntilTermStart,
             first_day_of_week = firstDayOfWeek,
-            total_weeks = appSettings?.semesterTotalWeeks ?: 0
+            total_weeks = appSettings?.semesterTotalWeeks ?: 0,
+            agenda_items = agendaItems
         )
 
         // 4. 定义所有原生尺寸的映射列表
@@ -154,7 +210,7 @@ private suspend fun realUpdateAllWidgets(context: Context) {
             DoubleDaysNativeProvider::class.java to { ctx, snap, id -> DoubleDaysNativeRenderer.render(ctx, snap, id) },
             ListVerticalNativeProvider::class.java to { ctx, snap, id -> ListVerticalNativeRenderer.render(ctx, snap, id) },
             AgendaNativeProvider::class.java to { ctx, snap, id -> AgendaNativeRenderer.render(ctx, snap, id) },
-            WeeklyTableNativeProvider::class.java to { ctx, snap, id -> WeeklyTableNativeRenderer.render(ctx, snap, id) }
+            AgendaCompactNativeProvider::class.java to { ctx, snap, id -> AgendaCompactNativeRenderer.render(ctx, snap, id) }
         )
 
         // 5. 统一分发更新

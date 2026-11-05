@@ -48,7 +48,7 @@
                 android:includeFontPadding="false"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                android:textColor="#B45309"
+                android:textColor="#E5484D"
                 android:textSize="10dp"
                 android:textStyle="bold"
                 android:visibility="gone"

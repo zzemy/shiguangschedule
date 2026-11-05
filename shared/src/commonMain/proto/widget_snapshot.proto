@@ -20,6 +20,17 @@ message WidgetCourseProto {
   string date = 9;
 }
 
+message WidgetAgendaItemProto {
+  string id = 1;
+  string title = 2;
+  string type = 3; // EXAM / DAILY / CUSTOM
+  string date = 4;
+  string start_time = 5;
+  string end_time = 6;
+  string location = 7;
+  int32 days_left = 8;
+}
+
 message WidgetSnapshot {
   repeated WidgetCourseProto courses = 1;
   int32 current_week = 2;
@@ -29,4 +40,6 @@ message WidgetSnapshot {
   int32 days_until_term_start = 4;
   int32 first_day_of_week = 5;
   int32 total_weeks = 6;
+
+  repeated WidgetAgendaItemProto agenda_items = 7;
 }

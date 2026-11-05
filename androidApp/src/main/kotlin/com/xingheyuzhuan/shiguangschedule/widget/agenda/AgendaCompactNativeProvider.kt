@@ -1,4 +1,4 @@
-package com.xingheyuzhuan.shiguangschedule.widget.weekly
+package com.xingheyuzhuan.shiguangschedule.widget.agenda
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -9,23 +9,32 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
 /**
- * 全周课表大卡片小组件接收器
- * 负责响应系统刷新广播并触发 WeeklyTableNativeRenderer 进行渲染
+ * 日程与考试近期焦点 2x2 小组件接收器
+ * 负责响应系统刷新广播并触发 AgendaCompactNativeRenderer 进行渲染
  */
-class WeeklyTableNativeProvider : AppWidgetProvider() {
+class AgendaCompactNativeProvider : AppWidgetProvider() {
     private val scope = MainScope()
 
+    /**
+     * 当小组件需要更新时调用（系统定时或手动请求）
+     */
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         scope.launch {
             updateAllWidgets(context)
         }
     }
 
+    /**
+     * 当第一个该类型的小组件添加到桌面时调用
+     */
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         WorkManagerHelper.schedulePeriodicWork(context)
     }
 
+    /**
+     * 当该类型的最后一个小组件从桌面移除时调用
+     */
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         WorkManagerHelper.cancelAllWork(context)

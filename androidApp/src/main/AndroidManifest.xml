@@ -146,15 +146,15 @@
         </receiver>
 
         <receiver
-            android:name=".widget.weekly.WeeklyTableNativeProvider"
+            android:name=".widget.agenda.AgendaCompactNativeProvider"
             android:exported="false"
-            android:label="@string/widget_name_weekly_table">
+            android:label="@string/widget_name_agenda_compact">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/shiguangschedule_weekly_table_widget" />
+                android:resource="@xml/shiguangschedule_agenda_compact_widget" />
         </receiver>
 
         <provider

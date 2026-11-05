@@ -28,6 +28,13 @@ class ScheduleEventRepository(
     }
 
     /**
+     * 获取指定课表从指定日期开始的日程看板事件（考试、补课/日程与未完成待办）。
+     */
+    fun getUpcomingAgendaEventsFlow(courseTableId: String, fromDate: String): Flow<List<ScheduleEvent>> {
+        return scheduleEventDao.getUpcomingAgendaEventsFlow(courseTableId, fromDate)
+    }
+
+    /**
      * 获取指定课表在日期范围 [startDate, endDateExclusive) 内的补课与考试事件。
      */
     fun getEventsInRangeFlow(

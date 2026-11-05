@@ -93,6 +93,17 @@
                 android:textSize="12.5dp"
                 android:textStyle="bold"
                 tools:text="交微积分作业" />
+
+            <TextView
+                android:id="@+id/tv_item_countdown_dark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:includeFontPadding="false"
+                android:textColor="#E5484D"
+                android:textSize="8.5dp"
+                android:textStyle="bold"
+                tools:text="还有16天" />
         </LinearLayout>
 
         <TextView
