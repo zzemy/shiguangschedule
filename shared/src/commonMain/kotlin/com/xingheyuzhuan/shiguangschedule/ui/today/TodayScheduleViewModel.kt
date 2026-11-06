@@ -123,9 +123,16 @@ class TodayScheduleViewModel(
                 val eventsFlow = scheduleEventRepository.getEventsForDateFlow(tableId, today.toString())
                 val upcomingExamsFlow = scheduleEventRepository.getUpcomingExamsFlow(tableId, today.toString())
                 val upcomingMakeupsFlow = scheduleEventRepository.getUpcomingMakeupsFlow(tableId, today.toString())
+                val upcomingTodosFlow = scheduleEventRepository.getUpcomingTodosFlow(tableId, today.toString())
 
-                combine(coursesFlow, eventsFlow, upcomingExamsFlow, upcomingMakeupsFlow) { courses, events, exams, makeups ->
-                    createSuccessState(courses, snapshot, today, events, exams, makeups)
+                combine(
+                    coursesFlow,
+                    eventsFlow,
+                    upcomingExamsFlow,
+                    upcomingMakeupsFlow,
+                    upcomingTodosFlow
+                ) { courses, events, exams, makeups, todos ->
+                    createSuccessState(courses, snapshot, today, events, exams, makeups, todos)
                 }
             }
         }
@@ -275,7 +282,8 @@ class TodayScheduleViewModel(
         today: LocalDate,
         events: List<ScheduleEvent> = emptyList(),
         upcomingExams: List<ScheduleEvent> = emptyList(),
-        upcomingMakeups: List<ScheduleEvent> = emptyList()
+        upcomingMakeups: List<ScheduleEvent> = emptyList(),
+        upcomingTodos: List<ScheduleEvent> = emptyList()
     ): TodayUiState.Success {
         val slotMap = snapshot.timeSlots.associateBy { it.number }
 
@@ -302,7 +310,8 @@ class TodayScheduleViewModel(
             firstDayOfWeek = snapshot.firstDayOfWeek,
             events = events,
             upcomingExams = upcomingExams,
-            upcomingMakeups = upcomingMakeups
+            upcomingMakeups = upcomingMakeups,
+            upcomingTodos = upcomingTodos
         )
     }
 }
@@ -337,6 +346,7 @@ sealed class TodayUiState {
         val firstDayOfWeek: Int,
         val events: List<ScheduleEvent> = emptyList(),
         val upcomingExams: List<ScheduleEvent> = emptyList(),
-        val upcomingMakeups: List<ScheduleEvent> = emptyList()
+        val upcomingMakeups: List<ScheduleEvent> = emptyList(),
+        val upcomingTodos: List<ScheduleEvent> = emptyList()
     ) : TodayUiState()
 }

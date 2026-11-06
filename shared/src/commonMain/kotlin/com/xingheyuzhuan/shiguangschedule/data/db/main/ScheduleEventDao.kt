@@ -51,6 +51,17 @@ interface ScheduleEventDao {
     fun getUpcomingExamsFlow(courseTableId: String, fromDate: String): Flow<List<ScheduleEvent>>
 
     /**
+     * 获取指定课表在指定日期之后尚未完成的每日待办，按日期和开始时间排序。
+     */
+    @Query(
+        "SELECT * FROM schedule_events " +
+            "WHERE courseTableId = :courseTableId AND date > :today " +
+            "AND type = 'DAILY' AND isCompleted = 0 " +
+            "ORDER BY date ASC, startTime ASC"
+    )
+    fun getUpcomingTodosFlow(courseTableId: String, today: String): Flow<List<ScheduleEvent>>
+
+    /**
      * 获取指定课表从指定日期开始的日程看板事件（考试、补课与每日待办）。
      * 仅供日程小组件与相关刷新链路使用，不得写入课程小组件数据库。
      */

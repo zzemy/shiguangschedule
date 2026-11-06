@@ -383,6 +383,11 @@ fun TodayContent(
     val futureMakeups = remember(state.upcomingMakeups) {
         state.upcomingMakeups.filter { it.type == "MAKEUP" }
     }
+    val futureTodos = remember(state.upcomingTodos, todayIso) {
+        state.upcomingTodos.filter {
+            it.type == "DAILY" && it.date > todayIso && !it.isCompleted
+        }
+    }
     val allDayEvents = remember(state.events) {
         state.events.filter { it.startTime.isNullOrBlank() }
     }
@@ -421,6 +426,7 @@ fun TodayContent(
         timelineEntries.size,
         futureExams.size,
         futureMakeups.size,
+        futureTodos.size,
         allDayEvents.size
     ) {
         if (timelineEntries.isEmpty()) {
@@ -428,9 +434,11 @@ fun TodayContent(
         } else {
             val examItemCount = if (futureExams.isNotEmpty()) 1 else 0
             val makeupItemCount = if (futureMakeups.isNotEmpty()) 1 else 0
+            val todoItemCount = if (futureTodos.isNotEmpty()) 1 else 0
             val allDayItemCount = if (allDayEvents.isNotEmpty()) 1 else 0
             val headerCount = 1
-            examItemCount + makeupItemCount + allDayItemCount + headerCount + targetTimelineIndex
+            examItemCount + makeupItemCount + todoItemCount + allDayItemCount +
+                headerCount + targetTimelineIndex
         }
     }
 
@@ -494,6 +502,7 @@ fun TodayContent(
 
         val hasContent = futureExams.isNotEmpty() ||
             futureMakeups.isNotEmpty() ||
+            futureTodos.isNotEmpty() ||
             allDayEvents.isNotEmpty() ||
             timelineEntries.isNotEmpty()
 
@@ -524,6 +533,18 @@ fun TodayContent(
                         UpcomingMakeupsSection(
                             today = state.today,
                             makeups = futureMakeups,
+                            onEdit = onEditEvent,
+                            onDelete = onDeleteEvent
+                        )
+                    }
+                }
+
+                if (futureTodos.isNotEmpty()) {
+                    item {
+                        UpcomingTodosSection(
+                            today = state.today,
+                            todos = futureTodos,
+                            onToggle = onToggleEvent,
                             onEdit = onEditEvent,
                             onDelete = onDeleteEvent
                         )
@@ -749,6 +770,116 @@ private fun EmptyStateView() {
         )
     }
 }
+
+@Composable
+private fun UpcomingTodosSection(
+    today: LocalDate,
+    todos: List<ScheduleEvent>,
+    onToggle: (ScheduleEvent) -> Unit,
+    onEdit: (ScheduleEvent) -> Unit,
+    onDelete: (ScheduleEvent) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "近期待办",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        todos.forEach { todo ->
+            val days = try {
+                today.daysUntil(LocalDate.parse(todo.date))
+            } catch (e: Exception) { 0 }
+
+            val countdownText = when {
+                days <= 0 -> "今天"
+                days == 1 -> "明天"
+                else -> "还有 $days 天"
+            }
+
+            Card(
+                onClick = { onEdit(todo) },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = todo.isCompleted,
+                        onCheckedChange = { onToggle(todo) }
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = todo.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = countdownText,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        val dateText = formatShortDate(todo.date)
+                        val timeText = todo.startTime?.take(5)?.takeIf { it.isNotBlank() }
+                        val dateTimeText = listOfNotNull(dateText, timeText).joinToString(" ")
+                        val placeText = listOfNotNull(
+                            todo.location?.takeIf { it.isNotBlank() },
+                            todo.detail?.takeIf { it.isNotBlank() }
+                        ).joinToString(" · ")
+                        val subInfo = listOfNotNull(
+                            dateTimeText.takeIf { it.isNotBlank() },
+                            placeText.takeIf { it.isNotBlank() }
+                        ).joinToString(" · ")
+
+                        if (subInfo.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = subInfo,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = { onDelete(todo) }) {
+                        Icon(
+                            painter = painterResource(Res.drawable.delete_24px),
+                            contentDescription = "删除",
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatShortDate(dateIso: String): String = runCatching {
+    val date = LocalDate.parse(dateIso)
+    val month = date.month.number.toString().padStart(2, '0')
+    val day = date.day.toString().padStart(2, '0')
+    "$month.$day"
+}.getOrDefault(dateIso)
 
 @Composable
 private fun UpcomingMakeupsSection(
