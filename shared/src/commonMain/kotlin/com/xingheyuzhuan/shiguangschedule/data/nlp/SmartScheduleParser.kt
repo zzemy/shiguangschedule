@@ -10,7 +10,11 @@ import kotlin.time.Clock
  * 轻量级自然语言日程解析器。
  *
  * 支持“明天下午五点去教三 206 上课”“下周三上午9:50高数期末考试在教2-410”
- * “今晚8点半交操作系统作业”等口语化输入，并提取标题、类型、日期、起止时间与地点。
+ * “今晚8点半交操作系统作业”“第10周 周三 1到2节 计网补课”等口语化输入，
+ * 并提取标题、类型、日期、起止时间与地点。
+ *
+ * 周次（第10周、第8到10周）会结合 [semesterStartDate] 或 [currentWeek] 推算具体日期；
+ * 节次（第1到2节）会在未指定具体钟点时映射为标准作息时间。
  */
 object SmartScheduleParser {
 
@@ -46,6 +50,48 @@ object SmartScheduleParser {
     )
 
     private const val MINUTES_PER_DAY = 24 * 60
+    private const val MAX_WEEK = 60
+
+    /** 口语化数字：阿拉伯数字或中文数字（十、十二、二十、两等）。 */
+    private const val NUMBER_TOKEN =
+        """(?:\d{1,2}|[零〇一二三四五六七八九十两]{1,3})"""
+    private const val RANGE_CONNECTOR =
+        """(?:-+|－+|—+|–+|~+|～+|至|到)"""
+
+    /** 南邮标准节次作息（分钟），索引 0 对应第 1 节。 */
+    private val SECTION_TIME_RANGES = listOf(
+        8 * 60 to 8 * 60 + 45,          // 第 1 节 08:00-08:45
+        8 * 60 + 50 to 9 * 60 + 35,     // 第 2 节 08:50-09:35
+        9 * 60 + 50 to 10 * 60 + 35,    // 第 3 节 09:50-10:35
+        10 * 60 + 40 to 11 * 60 + 25,   // 第 4 节 10:40-11:25
+        11 * 60 + 30 to 12 * 60 + 15,   // 第 5 节 11:30-12:15
+        14 * 60 to 14 * 60 + 45,        // 第 6 节 14:00-14:45
+        14 * 60 + 50 to 15 * 60 + 35,   // 第 7 节 14:50-15:35
+        15 * 60 + 45 to 16 * 60 + 30,   // 第 8 节 15:45-16:30
+        16 * 60 + 35 to 17 * 60 + 20,   // 第 9 节 16:35-17:20
+        18 * 60 + 30 to 19 * 60 + 15,   // 第 10 节 18:30-19:15
+        19 * 60 + 20 to 20 * 60 + 5,    // 第 11 节 19:20-20:05
+        20 * 60 + 10 to 20 * 60 + 55    // 第 12 节 20:10-20:55
+    )
+
+    private val WEEK_RANGE_REGEX = Regex(
+        """(?:第\s*)?($NUMBER_TOKEN)\s*(?:周)?\s*$RANGE_CONNECTOR\s*""" +
+            """(?:第\s*)?($NUMBER_TOKEN)\s*周(?:次)?"""
+    )
+    private val WEEK_SINGLE_REGEX = Regex(
+        """(?:第\s*)?($NUMBER_TOKEN)\s*周(?:次)?"""
+    )
+    private val WEEKDAY_RANGE_REGEX = Regex(
+        """(?:周|星期|礼拜)\s*[一二三四五六日天1-7]\s*$RANGE_CONNECTOR\s*""" +
+            """(?:周|星期|礼拜)\s*[一二三四五六日天1-7]"""
+    )
+    private val SECTION_RANGE_REGEX = Regex(
+        """(?:第\s*)?($NUMBER_TOKEN)\s*(?:节|小节)?\s*$RANGE_CONNECTOR\s*""" +
+            """(?:第\s*)?($NUMBER_TOKEN)\s*(?:节|小节)"""
+    )
+    private val SECTION_SINGLE_REGEX = Regex(
+        """(?:第\s*)?($NUMBER_TOKEN)\s*(?:节|小节)"""
+    )
 
     private val ISO_DATE_REGEX =
         Regex("""(?<!\d)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)""")
@@ -71,7 +117,7 @@ object SmartScheduleParser {
             """(\d{1,2}|[零〇一二三四五六七八九十两]{1,3})\s*(?:点|时)""" +
             """(?:\s*(半)|(\d{1,2}|[零〇一二三四五六七八九十两]{1,3})\s*分?)?"""
     )
-    private val RANGE_CONNECTOR_REGEX = Regex("""^\s*(?:-|－|—|–|~|～|至|到)\s*$""")
+    private val RANGE_CONNECTOR_REGEX = Regex("""^\s*$RANGE_CONNECTOR\s*$""")
 
     private val ZAI_LOCATION_REGEX = Regex(
         """(?:在|于)\s*([^\s，,。；;、！？!?]{1,20}?)""" +
@@ -98,16 +144,30 @@ object SmartScheduleParser {
 
     /**
      * 解析一句话。无法得到任何有效信息时返回 null；仅输入标题时返回“今天 + 全天”的结果。
+     *
+     * @param semesterStartDate 学期第 1 周的开学日期；提供后可精确推算“第 N 周 周几”。
+     * @param currentWeek 当前所在周次；未提供开学日期时，用它作为周次推算基准。
      */
-    fun parse(input: String, today: LocalDate = currentDate()): ParseResult? {
+    fun parse(
+        input: String,
+        today: LocalDate = currentDate(),
+        semesterStartDate: LocalDate? = null,
+        currentWeek: Int? = null
+    ): ParseResult? {
         val text = input.trim()
         if (text.isBlank()) return null
 
         val removals = mutableListOf<IntRange>()
         var periodHint: TimePeriod? = null
 
+        val colloquialMatch = COLLOQUIAL_TIME_REGEX.find(text)
+        val sectionMatch = findSectionMatch(text, colloquialMatch?.range)
+        val weekInfo = findWeekInfo(text)
+        weekInfo?.removalRanges?.forEach { removals += it }
+
         var date = today
         var hasExplicitDate = false
+        var matchedWeekday: Int? = null
 
         val eveningDate = EVENING_DATE_REGEX.find(text)
         if (eveningDate != null) {
@@ -128,7 +188,21 @@ object SmartScheduleParser {
                     date = it
                     hasExplicitDate = true
                 }
+                matchedWeekday = dateMatch.weekday
                 removals += dateMatch.range
+            }
+        }
+
+        if (weekInfo != null && matchedWeekday != null) {
+            resolveWeekDate(
+                targetWeek = weekInfo.targetWeek,
+                targetWeekday = matchedWeekday,
+                today = today,
+                semesterStartDate = semesterStartDate,
+                currentWeek = currentWeek
+            )?.let {
+                date = it
+                hasExplicitDate = true
             }
         }
 
@@ -171,8 +245,16 @@ object SmartScheduleParser {
             connectorRange?.let { removals += it }
         }
 
-        val colloquialMatch = COLLOQUIAL_TIME_REGEX.find(text)
-        if (colloquialMatch != null && timeTokens.isEmpty()) {
+        // 未指定具体钟点时，节次按标准作息映射；“第1到2节”取第 1 节开始到第 2 节结束。
+        if (startMinutes == null && sectionMatch != null) {
+            sectionTimeRange(sectionMatch.startSection, sectionMatch.endSection)?.let { (start, end) ->
+                startMinutes = start
+                endMinutes = end
+            }
+        }
+        sectionMatch?.range?.let { removals += it }
+
+        if (colloquialMatch != null && startMinutes == null) {
             when (colloquialMatch.value) {
                 "早八" -> {
                     startMinutes = 8 * 60
@@ -209,7 +291,8 @@ object SmartScheduleParser {
 
     private data class DateMatch(
         val parsedDate: LocalDate?,
-        val range: IntRange
+        val range: IntRange,
+        val weekday: Int? = null
     )
 
     private fun findDateMatch(text: String, today: LocalDate): DateMatch? {
@@ -267,7 +350,7 @@ object SmartScheduleParser {
             if (target != null) {
                 val daysToNextMonday = 8 - today.dayOfWeek.isoDayNumber
                 val candidate = today.plusDays(daysToNextMonday + target - 1)
-                return DateMatch(candidate, match.range)
+                return DateMatch(candidate, match.range, target)
             }
             return DateMatch(null, match.range)
         }
@@ -276,7 +359,7 @@ object SmartScheduleParser {
             val target = weekdayNumber(match.groupValues[1])
             if (target != null) {
                 val delta = (target - today.dayOfWeek.isoDayNumber + 7) % 7
-                return DateMatch(today.plusDays(delta), match.range)
+                return DateMatch(today.plusDays(delta), match.range, target)
             }
             return DateMatch(null, match.range)
         }
@@ -293,6 +376,123 @@ object SmartScheduleParser {
 
         return null
     }
+
+    private data class WeekInfo(
+        val targetWeek: Int,
+        val removalRanges: List<IntRange>
+    )
+
+    private data class SectionMatch(
+        val startSection: Int,
+        val endSection: Int,
+        val range: IntRange
+    )
+
+    /**
+     * 提取“第10周”“第8到10周”等周次表达。区间取起始周作为事件日期。
+     */
+    private fun findWeekInfo(text: String): WeekInfo? {
+        val weekdayRanges = WEEKDAY_RANGE_REGEX.findAll(text).map { it.range }.toList()
+        val validRanges = WEEK_RANGE_REGEX.findAll(text)
+            .filterNot { match -> weekdayRanges.any { overlaps(match.range, it) } }
+            .mapNotNull { match ->
+                val start = parseNumber(match.groupValues[1]) ?: return@mapNotNull null
+                val end = parseNumber(match.groupValues[2]) ?: return@mapNotNull null
+                val low = minOf(start, end)
+                val high = maxOf(start, end)
+                if (low !in 1..MAX_WEEK || high !in 1..MAX_WEEK) return@mapNotNull null
+                low to match.range
+            }
+            .toList()
+
+        if (validRanges.isNotEmpty()) {
+            return WeekInfo(
+                targetWeek = validRanges.first().first,
+                removalRanges = validRanges.map { it.second }
+            )
+        }
+
+        val validSingles = WEEK_SINGLE_REGEX.findAll(text)
+            .mapNotNull { match ->
+                val week = parseNumber(match.groupValues[1]) ?: return@mapNotNull null
+                if (week !in 1..MAX_WEEK) return@mapNotNull null
+                week to match.range
+            }
+            .toList()
+
+        if (validSingles.isNotEmpty()) {
+            return WeekInfo(
+                targetWeek = validSingles.first().first,
+                removalRanges = validSingles.map { it.second }
+            )
+        }
+        return null
+    }
+
+    /**
+     * 提取“第1到2节”“3-4节”“第3节”等节次表达。
+     * 与“下午两节”等口语化时段重叠时不视为节次。
+     */
+    private fun findSectionMatch(text: String, colloquialRange: IntRange?): SectionMatch? {
+        SECTION_RANGE_REGEX.findAll(text).forEach { match ->
+            if (colloquialRange != null && overlaps(match.range, colloquialRange)) return@forEach
+            val start = parseNumber(match.groupValues[1]) ?: return@forEach
+            val end = parseNumber(match.groupValues[2]) ?: return@forEach
+            val low = minOf(start, end)
+            val high = maxOf(start, end)
+            if (low in 1..SECTION_TIME_RANGES.size && high in 1..SECTION_TIME_RANGES.size) {
+                return SectionMatch(low, high, match.range)
+            }
+        }
+
+        val single = SECTION_SINGLE_REGEX.find(text) ?: return null
+        if (colloquialRange != null && overlaps(single.range, colloquialRange)) return null
+        // 避免区间解析失败时把“第1到2节”的尾部误当成单节。
+        if (text.getOrNull(single.range.first - 1) in setOf('到', '至', '-', '－', '—', '–', '~', '～')) {
+            return null
+        }
+        val section = parseNumber(single.groupValues[1]) ?: return null
+        if (section in 1..SECTION_TIME_RANGES.size) {
+            return SectionMatch(section, section, single.range)
+        }
+        return null
+    }
+
+    private fun sectionTimeRange(start: Int, end: Int): Pair<Int, Int>? {
+        if (start !in 1..SECTION_TIME_RANGES.size || end !in 1..SECTION_TIME_RANGES.size) {
+            return null
+        }
+        val low = minOf(start, end)
+        val high = maxOf(start, end)
+        return SECTION_TIME_RANGES[low - 1].first to SECTION_TIME_RANGES[high - 1].second
+    }
+
+    private fun resolveWeekDate(
+        targetWeek: Int,
+        targetWeekday: Int,
+        today: LocalDate,
+        semesterStartDate: LocalDate?,
+        currentWeek: Int?
+    ): LocalDate? {
+        if (targetWeek < 1 || targetWeekday !in 1..7) return null
+
+        if (semesterStartDate != null) {
+            val firstWeekMonday = semesterStartDate.plusDays(
+                1 - semesterStartDate.dayOfWeek.isoDayNumber
+            )
+            return firstWeekMonday.plusDays((targetWeek - 1) * 7 + (targetWeekday - 1))
+        }
+
+        if (currentWeek != null && currentWeek > 0) {
+            val currentWeekMonday = today.plusDays(1 - today.dayOfWeek.isoDayNumber)
+            return currentWeekMonday.plusDays((targetWeek - currentWeek) * 7 + (targetWeekday - 1))
+        }
+
+        return null
+    }
+
+    private fun overlaps(first: IntRange, second: IntRange): Boolean =
+        first.first <= second.last && second.first <= first.last
 
     private fun findTimeTokens(text: String): List<TimeToken> {
         val tokens = mutableListOf<TimeToken>()

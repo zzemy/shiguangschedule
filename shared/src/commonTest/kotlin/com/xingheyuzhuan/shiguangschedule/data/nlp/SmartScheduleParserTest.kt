@@ -146,6 +146,166 @@ class SmartScheduleParserTest {
     }
 
     @Test
+    fun parsesWeekAndSectionRangeWithLocation() {
+        val result = SmartScheduleParser.parse(
+            "第10周 周三 1到2节 计网补课 在教三206",
+            today,
+            semesterStartDate = LocalDate(2026, 9, 7)
+        )
+
+        assertNotNull(result)
+        assertEquals("计网补课", result.title)
+        assertEquals(SmartScheduleParser.TYPE_MAKEUP, result.type)
+        assertEquals(LocalDate(2026, 11, 11), result.date)
+        assertEquals("08:00", result.startTime)
+        assertEquals("09:35", result.endTime)
+        assertEquals("教三206", result.location)
+        assertTrue(result.hasExplicitDate)
+    }
+
+    @Test
+    fun parsesSectionRangeWithoutWeekday() {
+        val result = SmartScheduleParser.parse("第3到4节 操作系统实验 在实验楼302", today)
+
+        assertNotNull(result)
+        assertEquals("操作系统实验", result.title)
+        assertEquals(SmartScheduleParser.TYPE_MAKEUP, result.type)
+        assertEquals(today, result.date)
+        assertFalse(result.hasExplicitDate)
+        assertEquals("09:50", result.startTime)
+        assertEquals("11:25", result.endTime)
+        assertEquals("实验楼302", result.location)
+    }
+
+    @Test
+    fun parsesSectionRangeWithWeekday() {
+        val result = SmartScheduleParser.parse("周四 第1至2节 高数", today)
+
+        assertNotNull(result)
+        assertEquals("高数", result.title)
+        assertEquals(today, result.date)
+        assertTrue(result.hasExplicitDate)
+        assertEquals("08:00", result.startTime)
+        assertEquals("09:35", result.endTime)
+    }
+
+    @Test
+    fun parsesWeekRangeAndSectionWithoutName() {
+        val result = SmartScheduleParser.parse("第1到16周 1-2节", today)
+
+        assertNotNull(result)
+        assertEquals("新日程", result.title)
+        assertEquals(today, result.date)
+        assertFalse(result.hasExplicitDate)
+        assertEquals("08:00", result.startTime)
+        assertEquals("09:35", result.endTime)
+    }
+
+    @Test
+    fun computesDateFromWeekAndSemesterStart() {
+        val result = SmartScheduleParser.parse(
+            "第3周 周三 1到2节 高数",
+            today,
+            semesterStartDate = LocalDate(2026, 9, 7)
+        )
+
+        assertNotNull(result)
+        assertEquals(LocalDate(2026, 9, 23), result.date)
+        assertTrue(result.hasExplicitDate)
+    }
+
+    @Test
+    fun computesDateFromWeekRangeUsingStartWeek() {
+        val result = SmartScheduleParser.parse(
+            "第10周到第12周 周四 第3到4节 操作系统实验",
+            today,
+            semesterStartDate = LocalDate(2026, 9, 7)
+        )
+
+        assertNotNull(result)
+        assertEquals(LocalDate(2026, 11, 12), result.date)
+        assertEquals("09:50", result.startTime)
+        assertEquals("11:25", result.endTime)
+        assertEquals("操作系统实验", result.title)
+    }
+
+    @Test
+    fun computesDateFromWeekWithCurrentWeek() {
+        val result = SmartScheduleParser.parse(
+            "第10周 周三 1到2节 计网补课",
+            today,
+            currentWeek = 10
+        )
+
+        assertNotNull(result)
+        assertEquals(LocalDate(2026, 11, 4), result.date)
+        assertTrue(result.hasExplicitDate)
+    }
+
+    @Test
+    fun parsesChineseNumeralWeekAndSection() {
+        val result = SmartScheduleParser.parse(
+            "第十周 星期三 第一到二节 高数",
+            today,
+            semesterStartDate = LocalDate(2026, 9, 7)
+        )
+
+        assertNotNull(result)
+        assertEquals(LocalDate(2026, 11, 11), result.date)
+        assertEquals("08:00", result.startTime)
+        assertEquals("09:35", result.endTime)
+        assertEquals("高数", result.title)
+    }
+
+    @Test
+    fun parsesWeekRangeWithTildeAndEmDashConnectors() {
+        val result = SmartScheduleParser.parse(
+            "第8~10周 星期五 第1——2节 补课",
+            today,
+            semesterStartDate = LocalDate(2026, 9, 7)
+        )
+
+        assertNotNull(result)
+        assertEquals(LocalDate(2026, 10, 30), result.date)
+        assertEquals("08:00", result.startTime)
+        assertEquals("09:35", result.endTime)
+        assertEquals("补课", result.title)
+    }
+
+    @Test
+    fun explicitClockTimeTakesPrecedenceOverSectionMapping() {
+        val result = SmartScheduleParser.parse("第3到4节 14:00-15:00 补课", today)
+
+        assertNotNull(result)
+        assertEquals("14:00", result.startTime)
+        assertEquals("15:00", result.endTime)
+        assertEquals("补课", result.title)
+    }
+
+    @Test
+    fun keepsColloquialAfternoonTwoPeriodsIntact() {
+        val result = SmartScheduleParser.parse("明天下午两节高数", today)
+
+        assertNotNull(result)
+        assertEquals("高数", result.title)
+        assertEquals(LocalDate(2026, 11, 6), result.date)
+        assertEquals("13:45", result.startTime)
+        assertEquals("15:20", result.endTime)
+    }
+
+    @Test
+    fun weekWithoutWeekdayDoesNotChangeDateButIsRemovedFromTitle() {
+        val result = SmartScheduleParser.parse("第5周 3-4节 高数", today)
+
+        assertNotNull(result)
+        assertEquals("高数", result.title)
+        assertEquals(today, result.date)
+        assertFalse(result.hasExplicitDate)
+        assertEquals("09:50", result.startTime)
+        assertEquals("11:25", result.endTime)
+    }
+
+    @Test
     fun returnsNullForBlankInput() {
         assertNull(SmartScheduleParser.parse("   ", today))
     }

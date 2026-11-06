@@ -103,10 +103,8 @@ object DoubleDaysNativeRenderer {
         // 渲染左侧：今日课程
         val todayCourses = allCourses.filter { it.date == today.toString() || it.date.isBlank() }
         val remainingToday = todayCourses.filter {
-            !it.is_skipped && (it.id.startsWith("countdown-") || try { LocalTime.parse(it.end_time) > now } catch (_: Exception) { true })
-        }.sortedWith(
-            compareBy<WidgetCourseProto> { !it.id.startsWith("countdown-") }.thenBy { it.start_time }
-        )
+            !it.is_skipped && try { LocalTime.parse(it.end_time) > now } catch (_: Exception) { true }
+        }.sortedBy { it.start_time }
 
         renderColumn(
             context = context,

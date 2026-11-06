@@ -25,6 +25,22 @@ interface ScheduleEventDao {
     fun getEventsForDateFlow(courseTableId: String, date: String): Flow<List<ScheduleEvent>>
 
     /**
+     * 按主键获取单个日程事件，用于区分周课表中的伪课程与真实课程。
+     */
+    @Query("SELECT * FROM schedule_events WHERE id = :id LIMIT 1")
+    suspend fun getEventById(id: String): ScheduleEvent?
+
+    /**
+     * 获取指定课表在指定日期之后的补课事件，按日期和开始时间排序。
+     */
+    @Query(
+        "SELECT * FROM schedule_events " +
+            "WHERE courseTableId = :courseTableId AND type = 'MAKEUP' AND date > :fromDate " +
+            "ORDER BY date ASC, startTime ASC"
+    )
+    fun getUpcomingMakeupsFlow(courseTableId: String, fromDate: String): Flow<List<ScheduleEvent>>
+
+    /**
      * 获取指定课表在指定日期之后的考试日程，按日期和开始时间排序。
      */
     @Query(
@@ -33,6 +49,18 @@ interface ScheduleEventDao {
             "ORDER BY date ASC, startTime ASC"
     )
     fun getUpcomingExamsFlow(courseTableId: String, fromDate: String): Flow<List<ScheduleEvent>>
+
+    /**
+     * 获取指定课表从指定日期开始的日程看板事件（考试、补课与每日待办）。
+     * 仅供日程小组件与相关刷新链路使用，不得写入课程小组件数据库。
+     */
+    @Query(
+        "SELECT * FROM schedule_events " +
+            "WHERE courseTableId = :courseTableId AND date >= :fromDate " +
+            "AND (type IN ('EXAM', 'MAKEUP') OR (type = 'DAILY' AND isCompleted = 0)) " +
+            "ORDER BY date ASC, startTime ASC"
+    )
+    fun getUpcomingAgendaEventsFlow(courseTableId: String, fromDate: String): Flow<List<ScheduleEvent>>
 
     /**
      * 获取指定课表在日期范围 [startDate, endDateExclusive) 内的补课与考试事件，

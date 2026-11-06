@@ -122,9 +122,10 @@ class TodayScheduleViewModel(
                 }
                 val eventsFlow = scheduleEventRepository.getEventsForDateFlow(tableId, today.toString())
                 val upcomingExamsFlow = scheduleEventRepository.getUpcomingExamsFlow(tableId, today.toString())
+                val upcomingMakeupsFlow = scheduleEventRepository.getUpcomingMakeupsFlow(tableId, today.toString())
 
-                combine(coursesFlow, eventsFlow, upcomingExamsFlow) { courses, events, exams ->
-                    createSuccessState(courses, snapshot, today, events, exams)
+                combine(coursesFlow, eventsFlow, upcomingExamsFlow, upcomingMakeupsFlow) { courses, events, exams, makeups ->
+                    createSuccessState(courses, snapshot, today, events, exams, makeups)
                 }
             }
         }
@@ -273,7 +274,8 @@ class TodayScheduleViewModel(
         snapshot: DataSnapshot,
         today: LocalDate,
         events: List<ScheduleEvent> = emptyList(),
-        upcomingExams: List<ScheduleEvent> = emptyList()
+        upcomingExams: List<ScheduleEvent> = emptyList(),
+        upcomingMakeups: List<ScheduleEvent> = emptyList()
     ): TodayUiState.Success {
         val slotMap = snapshot.timeSlots.associateBy { it.number }
 
@@ -299,7 +301,8 @@ class TodayScheduleViewModel(
             totalWeeks = snapshot.totalWeeks,
             firstDayOfWeek = snapshot.firstDayOfWeek,
             events = events,
-            upcomingExams = upcomingExams
+            upcomingExams = upcomingExams,
+            upcomingMakeups = upcomingMakeups
         )
     }
 }
@@ -333,6 +336,7 @@ sealed class TodayUiState {
         val totalWeeks: Int,
         val firstDayOfWeek: Int,
         val events: List<ScheduleEvent> = emptyList(),
-        val upcomingExams: List<ScheduleEvent> = emptyList()
+        val upcomingExams: List<ScheduleEvent> = emptyList(),
+        val upcomingMakeups: List<ScheduleEvent> = emptyList()
     ) : TodayUiState()
 }

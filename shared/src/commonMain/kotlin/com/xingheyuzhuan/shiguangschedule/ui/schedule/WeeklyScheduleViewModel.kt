@@ -229,6 +229,26 @@ class WeeklyScheduleViewModel(
     fun updatePagerDate(newDate: LocalDate) = _pagerMondayDate.update { newDate }
 
     /**
+     * 按 id 查询日程事件，用于识别周课表中的补课/考试伪课程。
+     */
+    suspend fun findScheduleEvent(id: String): ScheduleEvent? =
+        scheduleEventRepository.getEventById(id)
+
+    /**
+     * 更新日程事件（补课/考试），Room 变更会自动刷新周课表。
+     */
+    fun updateScheduleEvent(event: ScheduleEvent) = viewModelScope.launch {
+        scheduleEventRepository.updateEvent(event)
+    }
+
+    /**
+     * 删除日程事件（补课/考试），Room 变更会自动刷新周课表与小组件。
+     */
+    fun deleteScheduleEvent(event: ScheduleEvent) = viewModelScope.launch {
+        scheduleEventRepository.deleteEvent(event)
+    }
+
+    /**
      * 持久化单个冲突格的堆叠顺序（靠前的课程显示在最上层）。
      */
     fun updateStackClusterOrder(clusterKey: String, courseIds: List<String>) = viewModelScope.launch {

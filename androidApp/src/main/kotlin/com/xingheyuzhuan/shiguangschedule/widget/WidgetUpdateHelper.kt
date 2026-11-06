@@ -66,6 +66,7 @@ object WidgetUpdateDebouncer {
  */
 suspend fun updateAllWidgets(context: Context) {
     WidgetUpdateDebouncer.requestUpdate(context)
+    com.xingheyuzhuan.shiguangschedule.widget.agenda.AgendaWidgetUpdateDebouncer.requestUpdate(context)
 }
 
 /**
@@ -83,6 +84,8 @@ private suspend fun realUpdateAllWidgets(context: Context) {
 
         val dbCourses = withTimeoutOrNull(3.seconds) {
             repository.getWidgetCoursesByDateRange(today.toString(), tomorrow.toString()).first()
+        }?.filterNot {
+            it.id.startsWith("countdown-") || it.id.startsWith("exam-") || it.id.startsWith("daily-")
         } ?: emptyList()
 
         val currentWeek = withTimeoutOrNull(2.seconds) {

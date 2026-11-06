@@ -96,10 +96,9 @@ object CompactNativeRenderer {
         val tomorrowStr = tomorrow.toString()
 
         val todayRemaining = allCourses.filter {
-            (it.date == todayStr || it.date.isBlank()) && !it.is_skipped && (it.id.startsWith("countdown-") || try { LocalTime.parse(it.end_time) > now } catch (_: Exception) { true })
-        }.sortedWith(
-            compareBy<WidgetCourseProto> { !it.id.startsWith("countdown-") }.thenBy { it.start_time }
-        )
+            (it.date == todayStr || it.date.isBlank()) && !it.is_skipped &&
+                try { LocalTime.parse(it.end_time) > now } catch (_: Exception) { true }
+        }.sortedBy { it.start_time }
 
         val tomorrowCourses = allCourses.filter { it.date == tomorrowStr && !it.is_skipped }.sortedBy { it.start_time }
 

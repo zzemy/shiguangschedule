@@ -84,19 +84,13 @@ object ListVerticalNativeRenderer {
         val todayRemaining = allCourses.filter { course ->
             val matchDate = course.date == todayStr || course.date.isBlank()
             val notSkipped = !course.is_skipped
-            val notEnded = if (course.id.startsWith("countdown-")) {
-                true // 倒计时全天有效，绝不被今日当前时间判定为已结束过滤
-            } else {
-                try {
-                    LocalTime.parse(course.end_time) > now
-                } catch (e: Exception) {
-                    true
-                }
+            val notEnded = try {
+                LocalTime.parse(course.end_time) > now
+            } catch (e: Exception) {
+                true
             }
             matchDate && notSkipped && notEnded
-        }.sortedWith(
-            compareBy<WidgetCourseProto> { !it.id.startsWith("countdown-") }.thenBy { it.start_time }
-        )
+        }.sortedBy { it.start_time }
 
         val tomorrowCourses = allCourses.filter { course ->
             course.date == tomorrowStr && !course.is_skipped
@@ -146,7 +140,7 @@ object ListVerticalNativeRenderer {
         when {
             todayRemaining.isNotEmpty() -> {
                 val headerTitle = "$weekPart  $dayOfWeekStr"
-                val remainingCoursesCount = todayRemaining.count { !it.id.startsWith("countdown-") && !it.id.startsWith("daily-") }
+                val remainingCoursesCount = todayRemaining.size
                 val countSummary = if (remainingCoursesCount > 0) {
                     context.getString(R.string.widget_remaining_courses_format_today, remainingCoursesCount)
                 } else {

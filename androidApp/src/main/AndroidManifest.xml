@@ -133,6 +133,30 @@
                 android:resource="@xml/shiguangschedule_list_vertical_widget" />
         </receiver>
 
+        <receiver
+            android:name=".widget.agenda.AgendaNativeProvider"
+            android:exported="true"
+            android:label="@string/widget_name_agenda">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/shiguangschedule_agenda_widget" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.agenda.AgendaCompactNativeProvider"
+            android:exported="true"
+            android:label="@string/widget_name_agenda_compact">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/shiguangschedule_agenda_compact_widget" />
+        </receiver>
+
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"

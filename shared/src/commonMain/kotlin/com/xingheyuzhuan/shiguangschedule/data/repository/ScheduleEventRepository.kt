@@ -21,10 +21,32 @@ class ScheduleEventRepository(
     }
 
     /**
+     * 按主键获取单个日程事件。
+     */
+    suspend fun getEventById(id: String): ScheduleEvent? {
+        return scheduleEventDao.getEventById(id)
+    }
+
+    /**
+     * 获取指定课表从指定日期之后开始的补课事件。
+     */
+    fun getUpcomingMakeupsFlow(courseTableId: String, fromDate: String): Flow<List<ScheduleEvent>> {
+        return scheduleEventDao.getUpcomingMakeupsFlow(courseTableId, fromDate)
+    }
+
+    /**
      * 获取指定课表从指定日期开始的考试日程。
      */
     fun getUpcomingExamsFlow(courseTableId: String, fromDate: String): Flow<List<ScheduleEvent>> {
         return scheduleEventDao.getUpcomingExamsFlow(courseTableId, fromDate)
+    }
+
+    /**
+     * 获取指定课表从指定日期开始的日程看板事件（考试、补课与每日待办）。
+     * 仅供日程小组件使用，与课程小组件的 Widget 数据库完全隔离。
+     */
+    fun getUpcomingAgendaEventsFlow(courseTableId: String, fromDate: String): Flow<List<ScheduleEvent>> {
+        return scheduleEventDao.getUpcomingAgendaEventsFlow(courseTableId, fromDate)
     }
 
     /**

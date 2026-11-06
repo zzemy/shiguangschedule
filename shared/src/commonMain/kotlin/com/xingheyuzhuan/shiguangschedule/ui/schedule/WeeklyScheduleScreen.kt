@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.xingheyuzhuan.shiguangschedule.Destination
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTable
+import com.xingheyuzhuan.shiguangschedule.data.db.main.ScheduleEvent
 import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.ScheduleModeProto
 import com.xingheyuzhuan.shiguangschedule.navigation.AddEditCourseChannel
 import com.xingheyuzhuan.shiguangschedule.navigation.PresetCourseData
@@ -69,6 +70,7 @@ import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.MergedCourseBlock
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.model.WeeklyScheduleUiState
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.util.StackOrderUtils
 import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
+import com.xingheyuzhuan.shiguangschedule.ui.today.AddScheduleEventBottomSheet
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
@@ -193,6 +195,7 @@ private fun WeeklyScheduleContentLoaded(
     var showTableSwitcher by remember { mutableStateOf(false) }
     var isGridHolding by remember { mutableStateOf(false) }
     var selectedBlockForDetail by remember { mutableStateOf<MergedCourseBlock?>(null) }
+    var selectedEventForDetail by remember { mutableStateOf<ScheduleEvent?>(null) }
     var stackOrderBlock by remember { mutableStateOf<MergedCourseBlock?>(null) }
 
     val composedStyle by remember(uiState.style) {
@@ -385,7 +388,20 @@ private fun WeeklyScheduleContentLoaded(
                 val gridActions = remember(uiState, floatingDuration, snackbarMsg) {
                     object : ScheduleGridActions {
                         override fun onCourseBlockClicked(block: MergedCourseBlock) {
-                            selectedBlockForDetail = block
+                            val courseId = block.courses.firstOrNull()?.course?.id
+                            if (courseId == null) {
+                                selectedBlockForDetail = block
+                                return
+                            }
+                            coroutineScope.launch {
+                                // 补课/考试在周课表中以伪课程渲染，需要回到日程事件编辑而非课程编辑
+                                val event = viewModel.findScheduleEvent(courseId)
+                                if (event != null) {
+                                    selectedEventForDetail = event
+                                } else {
+                                    selectedBlockForDetail = block
+                                }
+                            }
                         }
 
                         override fun onStackBadgeClicked(block: MergedCourseBlock) {
@@ -575,6 +591,26 @@ private fun WeeklyScheduleContentLoaded(
             onEditClick = { courseId ->
                 selectedBlockForDetail = null
                 onNavigate(Destination.AddEditCourse(courseId = courseId))
+            }
+        )
+    }
+
+    // 补课/考试详情弹窗（复用日程事件编辑抽屉，提供保存与删除）
+    selectedEventForDetail?.let { event ->
+        AddScheduleEventBottomSheet(
+            defaultDate = event.date,
+            initialEvent = event,
+            onDismiss = { selectedEventForDetail = null },
+            onOpenNjuptSync = {},
+            onImportIcs = {},
+            onConfirm = { _, _, _, _, _, _, _ -> },
+            onUpdate = { updated ->
+                viewModel.updateScheduleEvent(updated)
+                selectedEventForDetail = null
+            },
+            onDelete = { target ->
+                viewModel.deleteScheduleEvent(target)
+                selectedEventForDetail = null
             }
         )
     }

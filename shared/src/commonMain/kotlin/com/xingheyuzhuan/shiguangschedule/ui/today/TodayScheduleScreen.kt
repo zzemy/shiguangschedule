@@ -211,6 +211,8 @@ fun TodayScheduleScreen(
     )
 
     val todayFromState = (uiState as? TodayUiState.Success)?.today
+    val semesterStartDate = (uiState as? TodayUiState.Success)?.startDate
+    val currentWeek = (uiState as? TodayUiState.Success)?.weekIndex?.takeIf { it > 0 }
     val fallbackToday = remember {
         Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
     }
@@ -284,7 +286,9 @@ fun TodayScheduleScreen(
                 viewModel.addEvent(title, type, date, startTime, endTime, location, detail)
                 addDraft = null
                 showAddSheet = false
-            }
+            },
+            semesterStartDate = semesterStartDate,
+            currentWeek = currentWeek
         )
     }
 
@@ -303,7 +307,9 @@ fun TodayScheduleScreen(
             onDelete = { target ->
                 viewModel.deleteEvent(target)
                 editingEvent = null
-            }
+            },
+            semesterStartDate = semesterStartDate,
+            currentWeek = currentWeek
         )
     }
 
@@ -374,6 +380,9 @@ fun TodayContent(
     val futureExams = remember(state.upcomingExams, todayIso) {
         state.upcomingExams.filter { it.type == "EXAM" && it.date > todayIso }
     }
+    val futureMakeups = remember(state.upcomingMakeups) {
+        state.upcomingMakeups.filter { it.type == "MAKEUP" }
+    }
     val allDayEvents = remember(state.events) {
         state.events.filter { it.startTime.isNullOrBlank() }
     }
@@ -411,15 +420,17 @@ fun TodayContent(
         targetTimelineIndex,
         timelineEntries.size,
         futureExams.size,
+        futureMakeups.size,
         allDayEvents.size
     ) {
         if (timelineEntries.isEmpty()) {
             0
         } else {
             val examItemCount = if (futureExams.isNotEmpty()) 1 else 0
+            val makeupItemCount = if (futureMakeups.isNotEmpty()) 1 else 0
             val allDayItemCount = if (allDayEvents.isNotEmpty()) 1 else 0
             val headerCount = 1
-            examItemCount + allDayItemCount + headerCount + targetTimelineIndex
+            examItemCount + makeupItemCount + allDayItemCount + headerCount + targetTimelineIndex
         }
     }
 
@@ -482,6 +493,7 @@ fun TodayContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         val hasContent = futureExams.isNotEmpty() ||
+            futureMakeups.isNotEmpty() ||
             allDayEvents.isNotEmpty() ||
             timelineEntries.isNotEmpty()
 
@@ -501,6 +513,17 @@ fun TodayContent(
                         UpcomingExamsSection(
                             today = state.today,
                             exams = futureExams,
+                            onEdit = onEditEvent,
+                            onDelete = onDeleteEvent
+                        )
+                    }
+                }
+
+                if (futureMakeups.isNotEmpty()) {
+                    item {
+                        UpcomingMakeupsSection(
+                            today = state.today,
+                            makeups = futureMakeups,
                             onEdit = onEditEvent,
                             onDelete = onDeleteEvent
                         )
@@ -724,6 +747,111 @@ private fun EmptyStateView() {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.outline
         )
+    }
+}
+
+@Composable
+private fun UpcomingMakeupsSection(
+    today: LocalDate,
+    makeups: List<ScheduleEvent>,
+    onEdit: (ScheduleEvent) -> Unit,
+    onDelete: (ScheduleEvent) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "待上补课",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        makeups.forEach { makeup ->
+            val days = try {
+                today.daysUntil(LocalDate.parse(makeup.date))
+            } catch (e: Exception) { 0 }
+
+            val countdownText = when {
+                days == 0 -> "今天补课"
+                days > 0 -> "还有 $days 天"
+                else -> "已结束"
+            }
+
+            Card(
+                onClick = { onEdit(makeup) },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                ),
+                shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shape = MaterialTheme.shapes.extraSmall
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "补课",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.surface,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = makeup.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = countdownText,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        val timeStr = listOfNotNull(makeup.startTime, makeup.endTime?.let { "- $it" }).joinToString(" ")
+                        val subInfo = listOfNotNull(
+                            makeup.date,
+                            timeStr.takeIf { it.isNotBlank() },
+                            makeup.location?.takeIf { it.isNotBlank() }
+                        ).joinToString(" · ")
+                        if (subInfo.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = subInfo,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = { onDelete(makeup) }) {
+                        Icon(
+                            painter = painterResource(Res.drawable.delete_24px),
+                            contentDescription = "删除",
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1077,7 +1205,9 @@ fun AddScheduleEventBottomSheet(
     onImportIcs: () -> Unit,
     onConfirm: (title: String, type: String, date: String, startTime: String?, endTime: String?, location: String?, detail: String?) -> Unit,
     onUpdate: (ScheduleEvent) -> Unit = {},
-    onDelete: (ScheduleEvent) -> Unit = {}
+    onDelete: (ScheduleEvent) -> Unit = {},
+    semesterStartDate: LocalDate? = null,
+    currentWeek: Int? = null
 ) {
     val isEditing = initialEvent != null
     val initialDate = remember(defaultDate, initialEvent) {
@@ -1100,8 +1230,14 @@ fun AddScheduleEventBottomSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     var timePickerTarget by remember { mutableStateOf<EventTimeField?>(null) }
     val smartSource = workingDraft.smartInput.ifBlank { workingDraft.title }
-    val smartResult = remember(smartSource) {
-        smartSource.takeIf { it.isNotBlank() }?.let { SmartScheduleParser.parse(it) }
+    val smartResult = remember(smartSource, semesterStartDate, currentWeek) {
+        smartSource.takeIf { it.isNotBlank() }?.let {
+            SmartScheduleParser.parse(
+                it,
+                semesterStartDate = semesterStartDate,
+                currentWeek = currentWeek
+            )
+        }
     }
 
     fun updateDraft(transform: (DraftState) -> DraftState) {
