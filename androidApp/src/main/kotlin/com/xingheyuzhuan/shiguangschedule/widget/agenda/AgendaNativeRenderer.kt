@@ -97,9 +97,8 @@ internal object AgendaNativeRenderer {
         val alphaPercent = style.backgroundAlpha.coerceIn(0.0f, 1.0f)
         val scale = if (style.fontScale > 0f) style.fontScale else 1.0f
 
-        applyWidgetStyle(rv, isDark, colors, alphaPercent, scale)
+        applyWidgetStyle(rv, colors, alphaPercent, scale)
         renderHeader(context, rv, data.today)
-        renderNearestExamCountdown(context, rv, data.nearestExam, data.today)
 
         val items = data.items.take(MAX_AGENDA_ITEMS)
         if (items.isEmpty()) {
@@ -114,7 +113,6 @@ internal object AgendaNativeRenderer {
     private fun resetWidgetState(rv: RemoteViews) {
         rv.setViewVisibility(R.id.list_view_agenda, View.VISIBLE)
         rv.setViewVisibility(R.id.container_empty, View.GONE)
-        rv.setViewVisibility(R.id.tv_exam_countdown, View.GONE)
     }
 
     private fun bindRootClick(context: Context, rv: RemoteViews) {
@@ -140,25 +138,6 @@ internal object AgendaNativeRenderer {
             weekDayText
         )
         rv.setTextViewText(R.id.tv_header_title, headerText)
-    }
-
-    private fun renderNearestExamCountdown(
-        context: Context,
-        rv: RemoteViews,
-        exam: AgendaItem?,
-        today: LocalDate
-    ) {
-        if (exam == null) return
-
-        val daysLeft = exam.daysLeft(today)
-        val text = if (daysLeft <= 0) {
-            context.getString(R.string.widget_agenda_exam_today)
-        } else {
-            context.getString(R.string.widget_agenda_exam_countdown, daysLeft)
-        }
-
-        rv.setViewVisibility(R.id.tv_exam_countdown, View.VISIBLE)
-        rv.setTextViewText(R.id.tv_exam_countdown, text)
     }
 
     private fun renderAgendaList(
@@ -288,12 +267,10 @@ internal object AgendaNativeRenderer {
     private fun showEmptyState(rv: RemoteViews) {
         rv.setViewVisibility(R.id.list_view_agenda, View.GONE)
         rv.setViewVisibility(R.id.container_empty, View.VISIBLE)
-        rv.setViewVisibility(R.id.tv_exam_countdown, View.GONE)
     }
 
     private fun applyWidgetStyle(
         rv: RemoteViews,
-        isDark: Boolean,
         colors: ContentColors,
         alphaPercent: Float,
         scale: Float
@@ -302,9 +279,6 @@ internal object AgendaNativeRenderer {
 
         rv.setTextColor(R.id.tv_header_title, colors.primaryTextColor)
         rv.setTextViewTextSize(R.id.tv_header_title, TypedValue.COMPLEX_UNIT_DIP, 15f * scale)
-
-        rv.setTextColor(R.id.tv_exam_countdown, AgendaPalette.exam.textColor(isDark))
-        rv.setTextViewTextSize(R.id.tv_exam_countdown, TypedValue.COMPLEX_UNIT_DIP, 10f * scale)
 
         rv.setTextColor(R.id.tv_empty_title, colors.primaryTextColor)
         rv.setTextViewTextSize(R.id.tv_empty_title, TypedValue.COMPLEX_UNIT_DIP, 13f * scale)

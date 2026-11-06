@@ -5,14 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -202,10 +200,9 @@ private fun CompactCheckbox(checked: Boolean, onCheckedChange: () -> Unit) {
     }
 }
 
-/** 统一的通透悬浮卡片：左侧细微色条 + 12dp 内边距 + 14dp 圆角。 */
+/** 统一的通透悬浮卡片：12dp 内边距 + 14dp 圆角。 */
 @Composable
 private fun EventCardShell(
-    accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit
@@ -222,23 +219,10 @@ private fun EventCardShell(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(accent)
-            )
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                content = content
-            )
-        }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
     }
 }
 
@@ -936,7 +920,6 @@ private fun UpcomingTodosSection(
             val accent = eventAccentColor("DAILY")
 
             EventCardShell(
-                accent = accent,
                 onClick = { onEdit(todo) }
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -1006,7 +989,6 @@ private fun UpcomingMakeupsSection(
             val accent = eventAccentColor("MAKEUP")
 
             EventCardShell(
-                accent = accent,
                 onClick = { onEdit(makeup) }
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -1058,7 +1040,6 @@ fun UpcomingExamsSection(
             val accent = eventAccentColor("EXAM")
 
             EventCardShell(
-                accent = accent,
                 onClick = { onEdit(exam) }
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -1090,11 +1071,9 @@ fun ScheduleEventItem(
     onEdit: () -> Unit
 ) {
     val isDaily = event.type == "DAILY"
-    val accent = eventAccentColor(event.type)
     val meta = event.shortDateMeta()
 
     EventCardShell(
-        accent = accent,
         onClick = onEdit,
         modifier = Modifier.graphicsLayer(alpha = if (event.isCompleted) 0.5f else 1f)
     ) {
@@ -1137,7 +1116,6 @@ private fun ScheduleEventTimelineItem(
     onEdit: () -> Unit
 ) {
     val isDaily = event.type == "DAILY"
-    val accent = eventAccentColor(event.type)
     val meta = listOfNotNull(
         event.location?.takeIf { it.isNotBlank() },
         event.detail?.takeIf { it.isNotBlank() }
@@ -1174,7 +1152,6 @@ private fun ScheduleEventTimelineItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         EventCardShell(
-            accent = accent,
             onClick = onEdit,
             modifier = Modifier.weight(1f)
         ) {

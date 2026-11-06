@@ -36,7 +36,7 @@ internal object AgendaCompactNativeRenderer {
     private const val EXAM_COUNTDOWN_DARK = 0xFFFF8A7A.toInt()
 
     /** 待办倒计时：深灰色 */
-    private const val TODO_COUNTDOWN_LIGHT = 0xFF4A4A4A.toInt()
+    private const val TODO_COUNTDOWN_LIGHT = 0xFF555555.toInt()
     private const val TODO_COUNTDOWN_DARK = 0xFFE8E8EA.toInt()
 
     /** 补课倒计时：蓝色 */
@@ -199,9 +199,20 @@ internal object AgendaCompactNativeRenderer {
         val dateText = dateLabel(context, entry.date, today)
         val timeText = entry.startTime.take(5)
             .ifBlank { context.getString(R.string.widget_agenda_all_day) }
-        return listOf("$dateText $timeText", entry.location)
+        return listOf("$dateText $timeText", normalizeLocation(entry.location))
             .filter { it.isNotBlank() }
             .joinToString(" · ")
+    }
+
+    /** 去掉地点中的冗余空格，例如“教 2-302”整理为“教2-302”。 */
+    private fun normalizeLocation(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        return raw
+            .replace(Regex("\\s+"), " ")
+            .replace(Regex("(?<=[\\u4E00-\\u9FFF])\\s+(?=[0-9A-Za-z])"), "")
+            .replace(Regex("(?<=[0-9A-Za-z])\\s+(?=[\\u4E00-\\u9FFF])"), "")
+            .replace(Regex("(?<=\\d)\\s*-\\s*(?=\\d)"), "-")
+            .trim()
     }
 
     private fun dateLabel(context: Context, date: LocalDate, today: LocalDate): String = when (date) {

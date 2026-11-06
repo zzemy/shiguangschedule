@@ -1,20 +1,20 @@
 {
-  "tag_name": "v2.1.0-njupt.17",
-  "version_name": "2.1.0-njupt.17",
-  "body": "1. 今日页完成系统性视觉重构，移除全部 Emoji 标题，统一为加粗主题色标题\n2. 日程卡片统一使用 surfaceContainerLow 背景与 14dp 圆角，以左侧细色条区分考试、补课与待办\n3. 卡片信息层级重排：短日期时间 + 地点一行、15sp 加粗标题、右侧倒计时小胶囊\n4. 删除图标统一为 20dp 弱化样式，复选框紧凑对齐，标题不再被挤压\n5. 压缩卡片内边距至 10~12dp，首屏即可看到今日时间线",
-  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.17",
+  "tag_name": "v2.1.0-njupt.18",
+  "version_name": "2.1.0-njupt.18",
+  "body": "1. 今日课表移除日程卡片左侧生硬竖线，卡片回归完整圆角悬浮质感\n2. 4x2 日程大组件移除表头右上角多余的考试倒计时，日期星期更纯粹\n3. 2x2 临近日程子卡片改为白色/深灰高亮悬浮底，与外层浅底形成自然层次\n4. 2x2 小组件各行等分自适应，仅 1~2 条时不再堆叠顶部留下大片空白\n5. 地点文本自动去除冗余空格，右侧倒计时紧凑显示，标题与地点减少截断",
+  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.18",
   "assets": [
     {
-      "name": "shiguangschedule-v2.1.0-njupt.17-arm64-v8a-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.17/shiguangschedule-v2.1.0-njupt.17-arm64-v8a-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.18-arm64-v8a-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.18/shiguangschedule-v2.1.0-njupt.18-arm64-v8a-release.apk"
     },
     {
-      "name": "shiguangschedule-v2.1.0-njupt.17-armeabi-v7a-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.17/shiguangschedule-v2.1.0-njupt.17-armeabi-v7a-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.18-armeabi-v7a-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.18/shiguangschedule-v2.1.0-njupt.18-armeabi-v7a-release.apk"
     },
     {
-      "name": "shiguangschedule-v2.1.0-njupt.17-x86_64-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.17/shiguangschedule-v2.1.0-njupt.17-x86_64-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.18-x86_64-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.18/shiguangschedule-v2.1.0-njupt.18-x86_64-release.apk"
     }
   ]
 }
