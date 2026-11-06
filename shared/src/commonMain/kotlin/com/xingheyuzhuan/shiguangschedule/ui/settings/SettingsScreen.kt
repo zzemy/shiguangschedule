@@ -441,6 +441,11 @@ private fun AdvancedSettingsSection(onNavigate: (Destination) -> Unit) {
                 onClick = { onNavigate(Destination.StyleSettings) }
             )
             SettingItem(
+                title = "桌面小组件外观",
+                subtitle = "自定义小组件背景色、透明度、深色模式与字体缩放",
+                onClick = { onNavigate(Destination.WidgetStyleSettings) }
+            )
+            SettingItem(
                 title = stringResource(Res.string.holiday_management_title),
                 subtitle = stringResource(Res.string.holiday_management_desc),
                 onClick = { onNavigate(Destination.HolidayManagement) }

@@ -1,14 +1,18 @@
 package com.xingheyuzhuan.shiguangschedule.ui.today
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,6 +38,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -40,6 +46,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -56,6 +63,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -133,6 +141,135 @@ private const val EMPTY_TIME_PLACEHOLDER = "--:--"
 private const val DEFAULT_DAYS_ZERO = "0"
 private const val DEFAULT_OVERDUE_DAYS = 1
 private const val TIMELINE_TIME_SORT_KEY = "99:99"
+
+/** 考试 / 补课的细微左侧色条颜色。 */
+private val ExamAccent = Color(0xFFE0523F)
+private val MakeupAccent = Color(0xFF3B78E7)
+
+@Composable
+private fun eventAccentColor(type: String): Color = when (type) {
+    "EXAM" -> ExamAccent
+    "MAKEUP" -> MakeupAccent
+    else -> MaterialTheme.colorScheme.primary
+}
+
+@Composable
+private fun CountdownChip(text: String, accent: Color) {
+    Box(
+        modifier = Modifier
+            .background(accent.copy(alpha = 0.12f), RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = accent
+        )
+    }
+}
+
+@Composable
+private fun DeleteAction(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(Res.drawable.delete_24px),
+            contentDescription = "删除",
+            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+private fun CompactCheckbox(checked: Boolean, onCheckedChange: () -> Unit) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { onCheckedChange() },
+            modifier = Modifier.size(20.dp),
+            colors = CheckboxDefaults.colors(
+                checkedColor = MaterialTheme.colorScheme.primary,
+                uncheckedColor = MaterialTheme.colorScheme.outline
+            )
+        )
+    }
+}
+
+/** 统一的通透悬浮卡片：左侧细微色条 + 12dp 内边距 + 14dp 圆角。 */
+@Composable
+private fun EventCardShell(
+    accent: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(accent)
+            )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                content = content
+            )
+        }
+    }
+}
+
+private fun countdownLabel(days: Int): String = when {
+    days <= 0 -> "今天"
+    days == 1 -> "明天"
+    else -> "还有 $days 天"
+}
+
+/** 统一短日期格式：11.21 08:00 - 09:50 · 教2-302 */
+private fun ScheduleEvent.shortDateMeta(): String {
+    val dateText = formatShortDate(date)
+    val timeText = when {
+        !startTime.isNullOrBlank() && !endTime.isNullOrBlank() ->
+            "${startTime.take(5)} - ${endTime.take(5)}"
+        !startTime.isNullOrBlank() -> startTime.take(5)
+        else -> ""
+    }
+    val dateTimeText = listOfNotNull(
+        dateText.takeIf { it.isNotBlank() },
+        timeText.takeIf { it.isNotBlank() }
+    ).joinToString(" ")
+    val placeText = listOfNotNull(
+        location?.takeIf { it.isNotBlank() },
+        detail?.takeIf { it.isNotBlank() }
+    ).joinToString(" · ")
+    return listOfNotNull(
+        dateTimeText.takeIf { it.isNotBlank() },
+        placeText.takeIf { it.isNotBlank() }
+    ).joinToString(" · ")
+}
 
 /**
  * 添加日程抽屉的表单草稿。
@@ -564,7 +701,7 @@ fun TodayContent(
                 if (timelineEntries.isNotEmpty()) {
                     item {
                         Text(
-                            text = "🕒 今日时间线",
+                            text = "今日时间线",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -606,10 +743,10 @@ private fun AllDayEventsSection(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "📌 全天事项",
+            text = "全天事项",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.primary
         )
         events.forEach { event ->
             ScheduleEventItem(
@@ -796,79 +933,40 @@ private fun UpcomingTodosSection(
             val days = try {
                 today.daysUntil(LocalDate.parse(todo.date))
             } catch (e: Exception) { 0 }
+            val accent = eventAccentColor("DAILY")
 
-            val countdownText = when {
-                days <= 0 -> "今天"
-                days == 1 -> "明天"
-                else -> "还有 $days 天"
-            }
-
-            Card(
-                onClick = { onEdit(todo) },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth()
+            EventCardShell(
+                accent = accent,
+                onClick = { onEdit(todo) }
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = todo.isCompleted,
-                        onCheckedChange = { onToggle(todo) }
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = todo.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = countdownText,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        val dateText = formatShortDate(todo.date)
-                        val timeText = todo.startTime?.take(5)?.takeIf { it.isNotBlank() }
-                        val dateTimeText = listOfNotNull(dateText, timeText).joinToString(" ")
-                        val placeText = listOfNotNull(
-                            todo.location?.takeIf { it.isNotBlank() },
-                            todo.detail?.takeIf { it.isNotBlank() }
-                        ).joinToString(" · ")
-                        val subInfo = listOfNotNull(
-                            dateTimeText.takeIf { it.isNotBlank() },
-                            placeText.takeIf { it.isNotBlank() }
-                        ).joinToString(" · ")
-
-                        if (subInfo.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = subInfo,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    IconButton(onClick = { onDelete(todo) }) {
-                        Icon(
-                            painter = painterResource(Res.drawable.delete_24px),
-                            contentDescription = "删除",
-                            tint = MaterialTheme.colorScheme.outline
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CompactCheckbox(
+                            checked = todo.isCompleted,
+                            onCheckedChange = { onToggle(todo) }
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = todo.title,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 15.sp,
+                                textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
                         )
                     }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = todo.shortDateMeta(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                CountdownChip(countdownLabel(days), accent)
+                Spacer(modifier = Modifier.width(2.dp))
+                DeleteAction { onDelete(todo) }
             }
         }
     }
@@ -905,82 +1003,29 @@ private fun UpcomingMakeupsSection(
             val days = try {
                 today.daysUntil(LocalDate.parse(makeup.date))
             } catch (e: Exception) { 0 }
+            val accent = eventAccentColor("MAKEUP")
 
-            val countdownText = when {
-                days == 0 -> "今天补课"
-                days > 0 -> "还有 $days 天"
-                else -> "已结束"
-            }
-
-            Card(
-                onClick = { onEdit(makeup) },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                ),
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth()
+            EventCardShell(
+                accent = accent,
+                onClick = { onEdit(makeup) }
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = MaterialTheme.shapes.extraSmall
-                                    )
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "补课",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.surface,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = makeup.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = countdownText,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        val timeStr = listOfNotNull(makeup.startTime, makeup.endTime?.let { "- $it" }).joinToString(" ")
-                        val subInfo = listOfNotNull(
-                            makeup.date,
-                            timeStr.takeIf { it.isNotBlank() },
-                            makeup.location?.takeIf { it.isNotBlank() }
-                        ).joinToString(" · ")
-                        if (subInfo.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = subInfo,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    IconButton(onClick = { onDelete(makeup) }) {
-                        Icon(
-                            painter = painterResource(Res.drawable.delete_24px),
-                            contentDescription = "删除",
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = makeup.title,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = makeup.shortDateMeta(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                CountdownChip(countdownLabel(days), accent)
+                Spacer(modifier = Modifier.width(2.dp))
+                DeleteAction { onDelete(makeup) }
             }
         }
     }
@@ -1000,7 +1045,7 @@ fun UpcomingExamsSection(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "📅 考试倒计时",
+            text = "考试倒计时",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -1010,67 +1055,29 @@ fun UpcomingExamsSection(
             val days = try {
                 today.daysUntil(LocalDate.parse(exam.date))
             } catch (e: Exception) { 0 }
+            val accent = eventAccentColor("EXAM")
 
-            val countdownText = when {
-                days == 0 -> "今天考试"
-                days > 0 -> "还有 $days 天"
-                else -> "已结束"
-            }
-
-            Card(
-                onClick = { onEdit(exam) },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                ),
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth()
+            EventCardShell(
+                accent = accent,
+                onClick = { onEdit(exam) }
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = exam.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = countdownText,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-
-                        val timeStr = listOfNotNull(exam.startTime, exam.endTime?.let { "- $it" }).joinToString(" ")
-                        val locStr = listOfNotNull(
-                            exam.location?.takeIf { it.isNotBlank() },
-                            exam.detail?.takeIf { it.isNotBlank() }
-                        ).joinToString(" | ")
-
-                        val subInfo = listOfNotNull(exam.date, timeStr.takeIf { it.isNotBlank() }, locStr.takeIf { it.isNotBlank() }).joinToString(" · ")
-                        if (subInfo.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = subInfo,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    IconButton(onClick = { onDelete(exam) }) {
-                        Icon(
-                            painter = painterResource(Res.drawable.delete_24px),
-                            contentDescription = "删除",
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = exam.title,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = exam.shortDateMeta(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                CountdownChip(countdownLabel(days), accent)
+                Spacer(modifier = Modifier.width(2.dp))
+                DeleteAction { onDelete(exam) }
             }
         }
     }
@@ -1083,86 +1090,41 @@ fun ScheduleEventItem(
     onEdit: () -> Unit
 ) {
     val isDaily = event.type == "DAILY"
-    val isExam = event.type == "EXAM"
+    val accent = eventAccentColor(event.type)
+    val meta = event.shortDateMeta()
 
-    val badgeLabel = when (event.type) {
-        "EXAM" -> "考试"
-        "MAKEUP" -> "补课"
-        else -> "日程"
-    }
-
-    val containerColor = when (event.type) {
-        "EXAM" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-        "MAKEUP" -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    }
-
-    Card(
+    EventCardShell(
+        accent = accent,
         onClick = onEdit,
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer(alpha = if (event.isCompleted) 0.5f else 1f),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        shape = MaterialTheme.shapes.medium
+        modifier = Modifier.graphicsLayer(alpha = if (event.isCompleted) 0.5f else 1f)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isDaily) {
-                Checkbox(
-                    checked = event.isCompleted,
-                    onCheckedChange = { onToggle() }
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isDaily) {
+                    CompactCheckbox(
+                        checked = event.isCompleted,
+                        onCheckedChange = onToggle
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                }
+                Text(
+                    text = event.title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 15.sp,
+                        textDecoration = if (event.isCompleted) TextDecoration.LineThrough else null
+                    ),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
             }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = if (isExam) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                shape = MaterialTheme.shapes.extraSmall
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = badgeLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.surface,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = event.title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            textDecoration = if (event.isCompleted) TextDecoration.LineThrough else null
-                        ),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                val timeStr = if (!event.startTime.isNullOrBlank()) {
-                    "${event.startTime}${if (!event.endTime.isNullOrBlank()) " - ${event.endTime}" else ""}"
-                } else null
-
-                val subInfo = listOfNotNull(
-                    timeStr,
-                    event.location?.takeIf { it.isNotBlank() },
-                    event.detail?.takeIf { it.isNotBlank() }
-                ).joinToString(" · ")
-
-                if (subInfo.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = subInfo,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            if (meta.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = meta,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -1175,19 +1137,11 @@ private fun ScheduleEventTimelineItem(
     onEdit: () -> Unit
 ) {
     val isDaily = event.type == "DAILY"
-    val isExam = event.type == "EXAM"
-
-    val badgeLabel = when (event.type) {
-        "EXAM" -> "考试"
-        "MAKEUP" -> "补课"
-        else -> "日程"
-    }
-
-    val containerColor = when (event.type) {
-        "EXAM" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-        "MAKEUP" -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    }
+    val accent = eventAccentColor(event.type)
+    val meta = listOfNotNull(
+        event.location?.takeIf { it.isNotBlank() },
+        event.detail?.takeIf { it.isNotBlank() }
+    ).joinToString(" · ")
 
     Row(
         modifier = Modifier
@@ -1219,69 +1173,39 @@ private fun ScheduleEventTimelineItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        Card(
+        EventCardShell(
+            accent = accent,
             onClick = onEdit,
-            modifier = Modifier.weight(1f),
-            colors = CardDefaults.cardColors(containerColor = containerColor),
-            shape = MaterialTheme.shapes.medium
+            modifier = Modifier.weight(1f)
         ) {
-            Row(
-                modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = if (isExam) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.primary
-                                    },
-                                    shape = MaterialTheme.shapes.extraSmall
-                                )
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = badgeLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.surface,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = event.title,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                textDecoration = if (event.isCompleted) TextDecoration.LineThrough else null
-                            ),
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isDaily) {
+                        CompactCheckbox(
+                            checked = event.isCompleted,
+                            onCheckedChange = onToggle
                         )
+                        Spacer(modifier = Modifier.width(2.dp))
                     }
-
-                    val subInfo = listOfNotNull(
-                        event.location?.takeIf { it.isNotBlank() },
-                        event.detail?.takeIf { it.isNotBlank() }
-                    ).joinToString(" · ")
-
-                    if (subInfo.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = subInfo,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = event.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 15.sp,
+                            textDecoration = if (event.isCompleted) TextDecoration.LineThrough else null
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
-                if (isDaily) {
-                    Checkbox(
-                        checked = event.isCompleted,
-                        onCheckedChange = { onToggle() }
+                if (meta.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = meta,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
