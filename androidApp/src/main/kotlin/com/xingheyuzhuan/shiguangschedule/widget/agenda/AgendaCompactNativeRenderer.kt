@@ -31,65 +31,46 @@ internal object AgendaCompactNativeRenderer {
     private val DATE_FORMATTER = DateTimeFormatter.ofPattern("MM.dd")
     private const val MAX_VISIBLE_ITEMS = 3
 
-    /** 考试倒计时：醒目红橙色 */
+    /** 考试倒计时：高对比红橙色 */
     private const val EXAM_COUNTDOWN_LIGHT = 0xFFD9432F.toInt()
     private const val EXAM_COUNTDOWN_DARK = 0xFFFF8A7A.toInt()
 
-    private const val TODO_BADGE_TEXT_LIGHT = 0xFF5B6472.toInt()
-    private const val TODO_BADGE_TEXT_DARK = 0xFFC2C7D0.toInt()
-    private const val SCHEDULE_BADGE_TEXT_LIGHT = 0xFF2F6BC4.toInt()
-    private const val SCHEDULE_BADGE_TEXT_DARK = 0xFF8FB4FF.toInt()
+    /** 待办倒计时：深灰色 */
+    private const val TODO_COUNTDOWN_LIGHT = 0xFF4A4A4A.toInt()
+    private const val TODO_COUNTDOWN_DARK = 0xFFE8E8EA.toInt()
+
+    /** 补课倒计时：蓝色 */
+    private const val SCHEDULE_COUNTDOWN_LIGHT = 0xFF2F6BC4.toInt()
+    private const val SCHEDULE_COUNTDOWN_DARK = 0xFF8FB4FF.toInt()
 
     private data class ContentColors(
         val backgroundColor: Int,
         val primaryTextColor: Int,
-        val secondaryTextColor: Int,
-        val scheduleCountdownColor: Int
+        val secondaryTextColor: Int
     )
 
     private data class RowBinding(
         val containerId: Int,
-        val badgeTodoId: Int,
-        val badgeExamId: Int,
-        val badgeScheduleId: Int,
         val titleId: Int,
         val metaId: Int,
         val countdownId: Int
-    ) {
-        val badgeIds: IntArray
-            get() = intArrayOf(badgeTodoId, badgeExamId, badgeScheduleId)
-
-        fun badgeIdFor(kind: AgendaItemKind): Int = when (kind) {
-            AgendaItemKind.TODO -> badgeTodoId
-            AgendaItemKind.EXAM -> badgeExamId
-            AgendaItemKind.SCHEDULE -> badgeScheduleId
-        }
-    }
+    )
 
     private val ROWS = arrayOf(
         RowBinding(
             containerId = R.id.container_row_1,
-            badgeTodoId = R.id.tv_row_1_badge_todo,
-            badgeExamId = R.id.tv_row_1_badge_exam,
-            badgeScheduleId = R.id.tv_row_1_badge_schedule,
             titleId = R.id.tv_row_1_title,
             metaId = R.id.tv_row_1_meta,
             countdownId = R.id.tv_row_1_countdown
         ),
         RowBinding(
             containerId = R.id.container_row_2,
-            badgeTodoId = R.id.tv_row_2_badge_todo,
-            badgeExamId = R.id.tv_row_2_badge_exam,
-            badgeScheduleId = R.id.tv_row_2_badge_schedule,
             titleId = R.id.tv_row_2_title,
             metaId = R.id.tv_row_2_meta,
             countdownId = R.id.tv_row_2_countdown
         ),
         RowBinding(
             containerId = R.id.container_row_3,
-            badgeTodoId = R.id.tv_row_3_badge_todo,
-            badgeExamId = R.id.tv_row_3_badge_exam,
-            badgeScheduleId = R.id.tv_row_3_badge_schedule,
             titleId = R.id.tv_row_3_title,
             metaId = R.id.tv_row_3_meta,
             countdownId = R.id.tv_row_3_countdown
@@ -155,7 +136,7 @@ internal object AgendaCompactNativeRenderer {
             context.getString(R.string.widget_agenda_compact_empty)
         )
         rv.setTextColor(R.id.tv_empty_title, colors.primaryTextColor)
-        rv.setTextViewTextSize(R.id.tv_empty_title, TypedValue.COMPLEX_UNIT_DIP, 12f * scale)
+        rv.setTextViewTextSize(R.id.tv_empty_title, TypedValue.COMPLEX_UNIT_DIP, 12.5f * scale)
 
         if (isEmpty) return
 
@@ -180,16 +161,9 @@ internal object AgendaCompactNativeRenderer {
     ) {
         rv.setViewVisibility(row.containerId, View.VISIBLE)
 
-        val badgeId = row.badgeIdFor(item.kind)
-        row.badgeIds.forEach { id ->
-            rv.setViewVisibility(id, if (id == badgeId) View.VISIBLE else View.GONE)
-        }
-        rv.setTextColor(badgeId, badgeTextColor(item.kind, isDark))
-        rv.setTextViewTextSize(badgeId, TypedValue.COMPLEX_UNIT_DIP, 8f * scale)
-
         rv.setTextViewText(row.titleId, item.title)
         rv.setTextColor(row.titleId, colors.primaryTextColor)
-        rv.setTextViewTextSize(row.titleId, TypedValue.COMPLEX_UNIT_DIP, 13f * scale)
+        rv.setTextViewTextSize(row.titleId, TypedValue.COMPLEX_UNIT_DIP, 13.5f * scale)
 
         rv.setTextViewText(row.metaId, buildMeta(context, item, today))
         rv.setTextColor(row.metaId, colors.secondaryTextColor)
@@ -197,32 +171,21 @@ internal object AgendaCompactNativeRenderer {
 
         val daysLeft = item.daysLeft(today)
         rv.setTextViewText(row.countdownId, countdownText(context, daysLeft))
-        rv.setTextColor(row.countdownId, countdownTextColor(item.kind, isDark, colors))
+        rv.setTextColor(row.countdownId, countdownTextColor(item.kind, isDark))
         rv.setTextViewTextSize(
             row.countdownId,
             TypedValue.COMPLEX_UNIT_DIP,
-            13.5f * scale
+            13f * scale
         )
     }
 
-    private fun badgeTextColor(kind: AgendaItemKind, isDark: Boolean): Int = when (kind) {
+    private fun countdownTextColor(kind: AgendaItemKind, isDark: Boolean): Int = when (kind) {
         AgendaItemKind.TODO ->
-            if (isDark) TODO_BADGE_TEXT_DARK else TODO_BADGE_TEXT_LIGHT
+            if (isDark) TODO_COUNTDOWN_DARK else TODO_COUNTDOWN_LIGHT
         AgendaItemKind.EXAM ->
             if (isDark) EXAM_COUNTDOWN_DARK else EXAM_COUNTDOWN_LIGHT
         AgendaItemKind.SCHEDULE ->
-            if (isDark) SCHEDULE_BADGE_TEXT_DARK else SCHEDULE_BADGE_TEXT_LIGHT
-    }
-
-    private fun countdownTextColor(
-        kind: AgendaItemKind,
-        isDark: Boolean,
-        colors: ContentColors
-    ): Int = when (kind) {
-        AgendaItemKind.TODO -> colors.primaryTextColor
-        AgendaItemKind.EXAM ->
-            if (isDark) EXAM_COUNTDOWN_DARK else EXAM_COUNTDOWN_LIGHT
-        AgendaItemKind.SCHEDULE -> colors.scheduleCountdownColor
+            if (isDark) SCHEDULE_COUNTDOWN_DARK else SCHEDULE_COUNTDOWN_LIGHT
     }
 
     private fun countdownText(context: Context, daysLeft: Int): String = when {
@@ -271,16 +234,14 @@ internal object AgendaCompactNativeRenderer {
             ContentColors(
                 backgroundColor = scheme.surfaceContainer.toArgb(),
                 primaryTextColor = scheme.onSurface.toArgb(),
-                secondaryTextColor = scheme.onSurfaceVariant.toArgb(),
-                scheduleCountdownColor = scheme.primary.toArgb()
+                secondaryTextColor = scheme.onSurfaceVariant.toArgb()
             )
         } else {
             val contentColor = scheme.onPrimaryContainer
             ContentColors(
                 backgroundColor = scheme.primaryContainer.toArgb(),
                 primaryTextColor = contentColor.toArgb(),
-                secondaryTextColor = contentColor.copy(alpha = 0.72f).toArgb(),
-                scheduleCountdownColor = scheme.primary.toArgb()
+                secondaryTextColor = contentColor.copy(alpha = 0.72f).toArgb()
             )
         }
     }
