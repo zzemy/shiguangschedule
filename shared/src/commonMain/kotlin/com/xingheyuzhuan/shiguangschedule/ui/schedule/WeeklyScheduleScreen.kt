@@ -603,7 +603,7 @@ private fun WeeklyScheduleContentLoaded(
             onDismiss = { selectedEventForDetail = null },
             onOpenNjuptSync = {},
             onImportIcs = {},
-            onConfirm = { _, _, _, _, _, _, _ -> },
+            onConfirm = { _, _, _, _, _, _, _, _ -> },
             onUpdate = { updated ->
                 viewModel.updateScheduleEvent(updated)
                 selectedEventForDetail = null

@@ -30,6 +30,7 @@ data class ScheduleEvent(
     val endTime: String? = null, // 结束时间，格式为 "HH:MM"
     val location: String? = null, // 地点（教室 / 考场）
     val detail: String? = null, // 详情（座位号 / 备注）
+    val teacher: String? = null, // 任课教师（补课 / 考试）
     val isCompleted: Boolean = false, // 每日待办是否已完成
     val colorInt: Int? = null // 事件颜色索引
 )

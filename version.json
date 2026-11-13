@@ -1,20 +1,20 @@
 {
-  "tag_name": "v2.1.0-njupt.18",
-  "version_name": "2.1.0-njupt.18",
-  "body": "1. 今日课表移除日程卡片左侧生硬竖线，卡片回归完整圆角悬浮质感\n2. 4x2 日程大组件移除表头右上角多余的考试倒计时，日期星期更纯粹\n3. 2x2 临近日程子卡片改为白色/深灰高亮悬浮底，与外层浅底形成自然层次\n4. 2x2 小组件各行等分自适应，仅 1~2 条时不再堆叠顶部留下大片空白\n5. 地点文本自动去除冗余空格，右侧倒计时紧凑显示，标题与地点减少截断",
-  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.18",
+  "tag_name": "v2.1.0-njupt.19",
+  "version_name": "2.1.0-njupt.19",
+  "body": "1. 补课支持独立任课教师字段，并在周课表与今日看板正常展示\n2. 周课表正常节次补课（如周五6-7节）自动对齐标准节次网格，不在卡片上显示冗余具体起止时间\n3. 大幅增强自然语言解析：全面支持南邮计算机学科楼等各大院系学科楼、多房间号（405、407）及授课教师名单精准拆解\n4. 修复带节次的补课被错误识别为日程、一键填入时覆盖补课类型的问题",
+  "html_url": "https://github.com/zzemy/shiguangschedule/releases/tag/v2.1.0-njupt.19",
   "assets": [
     {
-      "name": "shiguangschedule-v2.1.0-njupt.18-arm64-v8a-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.18/shiguangschedule-v2.1.0-njupt.18-arm64-v8a-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.19-arm64-v8a-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.19/shiguangschedule-v2.1.0-njupt.19-arm64-v8a-release.apk"
     },
     {
-      "name": "shiguangschedule-v2.1.0-njupt.18-armeabi-v7a-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.18/shiguangschedule-v2.1.0-njupt.18-armeabi-v7a-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.19-armeabi-v7a-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.19/shiguangschedule-v2.1.0-njupt.19-armeabi-v7a-release.apk"
     },
     {
-      "name": "shiguangschedule-v2.1.0-njupt.18-x86_64-release.apk",
-      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.18/shiguangschedule-v2.1.0-njupt.18-x86_64-release.apk"
+      "name": "shiguangschedule-v2.1.0-njupt.19-x86_64-release.apk",
+      "browser_download_url": "https://github.com/zzemy/shiguangschedule/releases/download/v2.1.0-njupt.19/shiguangschedule-v2.1.0-njupt.19-x86_64-release.apk"
     }
   ]
 }

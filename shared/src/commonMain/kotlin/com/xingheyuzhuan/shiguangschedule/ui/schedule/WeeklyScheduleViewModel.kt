@@ -6,6 +6,7 @@ import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeek
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWithWeeks
 import com.xingheyuzhuan.shiguangschedule.data.db.main.ScheduleEvent
+import com.xingheyuzhuan.shiguangschedule.data.db.main.TimeSlot
 import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
 import com.xingheyuzhuan.shiguangschedule.data.model.schedule_style.ScheduleModeProto
 import com.xingheyuzhuan.shiguangschedule.data.repository.AppSettingsRepository
@@ -151,7 +152,7 @@ class WeeklyScheduleViewModel(
 
                 combine(coursesFlow, daySlotsFlow, eventsFlow) { courses, daySlots, events ->
                     val weekNumber = pageWeekNum ?: -1
-                    val eventCourses = events.mapNotNull { it.toPseudoCourse(weekNumber) }
+                    val eventCourses = events.mapNotNull { it.toPseudoCourse(weekNumber, daySlots) }
                     day.toString() to mergeCourses(courses + eventCourses, daySlots, weekNumber, mode)
                 }
             }) { results -> results.toMap() }
@@ -267,24 +268,33 @@ class WeeklyScheduleViewModel(
      * 将补课/考试事件映射为仅用于周课表渲染的伪课程。
      * 日期或时间不合法时返回 null，交由调用方跳过。
      */
-    private fun ScheduleEvent.toPseudoCourse(weekNumber: Int): CourseWithWeeks? = runCatching {
+    private fun ScheduleEvent.toPseudoCourse(
+        weekNumber: Int,
+        timeSlots: List<TimeSlot>
+    ): CourseWithWeeks? = runCatching {
         val name = when (type) {
             "EXAM" -> "[考试] $title"
             "MAKEUP" -> "[补课] $title"
             else -> title
         }
+        val startSlot = timeSlots.find { it.startTime == startTime }
+        val endSlot = timeSlots.find { it.endTime == endTime }
+        val usesStandardSection = startTime != null && endTime != null &&
+            startSlot != null && endSlot != null &&
+            startSlot.number <= endSlot.number
+
         val course = Course(
             id = id,
             courseTableId = courseTableId,
             name = name,
-            teacher = "",
+            teacher = teacher.orEmpty(),
             position = location.orEmpty(),
             day = LocalDate.parse(date).dayOfWeek.isoDayNumber,
-            startSection = null,
-            endSection = null,
-            isCustomTime = true,
-            customStartTime = startTime,
-            customEndTime = endTime,
+            startSection = if (usesStandardSection) startSlot?.number else null,
+            endSection = if (usesStandardSection) endSlot?.number else null,
+            isCustomTime = !usesStandardSection,
+            customStartTime = if (usesStandardSection) null else startTime,
+            customEndTime = if (usesStandardSection) null else endTime,
             colorInt = colorInt ?: 0
         )
         CourseWithWeeks(course, listOf(CourseWeek(course.id, weekNumber)))

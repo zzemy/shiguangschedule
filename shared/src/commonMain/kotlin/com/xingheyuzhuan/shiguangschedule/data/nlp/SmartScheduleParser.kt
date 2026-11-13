@@ -30,7 +30,8 @@ object SmartScheduleParser {
         val endTime: String?,
         val location: String?,
         val rawInput: String,
-        val hasExplicitDate: Boolean = false
+        val hasExplicitDate: Boolean = false,
+        val teacher: String? = null
     ) {
         val isAllDay: Boolean get() = startTime.isNullOrBlank()
     }
@@ -104,6 +105,7 @@ object SmartScheduleParser {
     private val MONTH_DAY_REGEX = Regex("""(?<!\d)(\d{1,2})月(\d{1,2})[日号]""")
     private val NEXT_WEEK_REGEX = Regex("下(?:周|星期|礼拜)([一二三四五六日天])")
     private val WEEK_REGEX = Regex("(?:周|星期|礼拜)([一二三四五六日天])")
+    private val WEEKDAY_TOKEN_REGEX = Regex("""(?:周|星期|礼拜)\s*[一二三四五六日天1-7]""")
 
     // 南邮大学特色口语化时段词：早八、下午两节、晚自习
     private val COLLOQUIAL_TIME_REGEX = Regex("(早八|下午两节|晚自习)")
@@ -127,14 +129,32 @@ object SmartScheduleParser {
         """去\s*([^，,。；;、！？!?]{1,20}?)""" +
             """(?=\s*(?:上课|考试|开会|自习|参加|做|看|吃|集合|见|拿|取|办理|$|[，,。；;！？!?]))"""
     )
-    // 南邮教学楼精确限定：教一至教四（教1~教4）、实验楼、通达馆、圆楼、文科楼、理科楼、安恒大厦、图书馆、体育馆等
+    // 南邮院系学科楼与常用场馆；长词前置，避免“计算机学科楼”被截成“学科楼”。
+    private const val NJUPT_BUILDING =
+        """(?:计算机|电子|光电|物联网|自动化|软件)?学科楼|自动化楼|软件楼|鼎山楼|中兴报告厅|大活|""" +
+            """教[1-4一二三四]|教学[1-4一二三四]楼|实验[楼室]|通达馆|圆楼|文科楼|理科楼|安恒大厦|安恒|""" +
+            """图书馆|体育馆|礼堂|食堂|会议室"""
+    // 房间号支持多间连写：405、407 / B201/B202 / 405, 407。
+    private const val ROOM_NUMBER = """[A-Za-z]?\d{2,4}"""
     private val ROOM_LOCATION_REGEX = Regex(
-        """(?:教[1-4一二三四]|教学[1-4一二三四]楼|实验[楼室]|通达馆|圆楼|文科楼|理科楼|安恒大厦|安恒|图书馆|体育馆|礼堂|食堂|会议室)""" +
-            """\s*[-－—]?\s*[A-Za-z]?\d{2,4}\s*(?:教室|室)?"""
+        """(?:$NJUPT_BUILDING)\s*[-－—]?\s*$ROOM_NUMBER""" +
+            """(?:\s*[、,，/]\s*$ROOM_NUMBER)*\s*(?:教室|室)?"""
     )
     private val PLAIN_LOCATION_REGEX = Regex(
-        "教[1-4一二三四]|教学[1-4一二三四]楼|实验楼|实验室|图书馆|体育馆|礼堂|食堂|操场|会议室|" +
-            "文科楼|理科楼|安恒大厦|安恒|通达馆|通达|圆楼|鼎山|战邮广场|南操|风雨操场|学一食堂|学二食堂|学三食堂"
+        "$NJUPT_BUILDING|通达|鼎山|战邮广场|南操|风雨操场|学一食堂|学二食堂|学三食堂"
+    )
+    // 教师：支持“张三老师”等称谓，以及“宋和平、李博文、研究生”这类人员列表。
+    private val TEACHER_SUFFIX_REGEX = Regex(
+        """([一-鿿]{1,3})\s*(?:老师|教师|教授)"""
+    )
+    private val TEACHER_LIST_REGEX = Regex(
+        """([一-鿿]{2,4}(?:\s*[、,，/]\s*[一-鿿]{2,4})+)"""
+    )
+    private val TEACHER_STOP_WORDS = listOf(
+        "上午", "下午", "中午", "晚上", "凌晨", "今天", "明天", "后天",
+        "周一", "周二", "周三", "周四", "周五", "周六", "周日",
+        "星期", "礼拜", "补课", "考试", "期末", "期中", "实验",
+        "课程", "教室", "地点", "时间", "备注", "宿舍", "食堂", "图书馆"
     )
     private val LOCATION_VERB_REGEX = Regex(
         "上课|考试|开会|自习|参加|想|说|做|看|吃|写|复习|学习|工作|睡|玩"
@@ -274,7 +294,14 @@ object SmartScheduleParser {
         val locationMatch = findLocation(text)
         locationMatch?.removalRange?.let { removals += it }
 
-        val type = detectType(text)
+        val teacherMatch = findTeacher(text, removals)
+        teacherMatch?.removalRange?.let { removals += it }
+
+        // 含节次或周次、且不是考试时，优先视为补课。
+        val type = detectType(
+            text = text,
+            hasSchedulingHint = sectionMatch != null || weekInfo != null
+        )
         val title = cleanTitle(text, removals, type)
 
         return ParseResult(
@@ -285,7 +312,8 @@ object SmartScheduleParser {
             endTime = endMinutes?.let(::formatMinutes),
             location = locationMatch?.value,
             rawInput = text,
-            hasExplicitDate = hasExplicitDate
+            hasExplicitDate = hasExplicitDate,
+            teacher = teacherMatch?.value
         )
     }
 
@@ -392,7 +420,10 @@ object SmartScheduleParser {
      * 提取“第10周”“第8到10周”等周次表达。区间取起始周作为事件日期。
      */
     private fun findWeekInfo(text: String): WeekInfo? {
-        val weekdayRanges = WEEKDAY_RANGE_REGEX.findAll(text).map { it.range }.toList()
+        val weekdayRanges = (
+            WEEKDAY_RANGE_REGEX.findAll(text).map { it.range } +
+                WEEKDAY_TOKEN_REGEX.findAll(text).map { it.range }
+            ).toList()
         val validRanges = WEEK_RANGE_REGEX.findAll(text)
             .filterNot { match -> weekdayRanges.any { overlaps(match.range, it) } }
             .mapNotNull { match ->
@@ -568,13 +599,6 @@ object SmartScheduleParser {
     }
 
     private fun findLocation(text: String): LocationMatch? {
-        ZAI_LOCATION_REGEX.find(text)?.let { match ->
-            val value = match.groupValues[1].trim()
-            if (looksLikeLocation(value)) {
-                return LocationMatch(value, match.range)
-            }
-        }
-
         ROOM_LOCATION_REGEX.find(text)?.let { match ->
             val value = match.value.trim()
             if (value.isNotBlank()) {
@@ -584,6 +608,13 @@ object SmartScheduleParser {
                     null
                 }
                 return LocationMatch(value, removal)
+            }
+        }
+
+        ZAI_LOCATION_REGEX.find(text)?.let { match ->
+            val value = match.groupValues[1].trim()
+            if (looksLikeLocation(value)) {
+                return LocationMatch(value, match.range)
             }
         }
 
@@ -606,18 +637,54 @@ object SmartScheduleParser {
         return null
     }
 
+    /**
+     * 提取授课教师。支持“张三老师”等称谓，以及“宋和平、李博文、研究生”这类人员列表。
+     */
+    private fun findTeacher(text: String, occupied: List<IntRange>): LocationMatch? {
+        TEACHER_LIST_REGEX.findAll(text).forEach { match ->
+            if (occupied.any { overlaps(match.range, it) }) return@forEach
+            val value = match.value.trim()
+            if (isValidTeacherList(value)) {
+                return LocationMatch(value, match.range)
+            }
+        }
+
+        TEACHER_SUFFIX_REGEX.find(text)?.let { match ->
+            if (occupied.any { overlaps(match.range, it) }) return null
+            val name = match.groupValues[1].trim()
+            if (name.isNotEmpty() && TEACHER_STOP_WORDS.none { name.contains(it) }) {
+                return LocationMatch(name, match.range)
+            }
+        }
+
+        return null
+    }
+
+    private fun isValidTeacherList(value: String): Boolean {
+        val parts = value.split(Regex("""[、,，/]"""))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        if (parts.size < 2) return false
+        return parts.all { part ->
+            part.length in 2..4 && TEACHER_STOP_WORDS.none { part.contains(it) }
+        }
+    }
+
     private fun looksLikeLocation(value: String): Boolean {
         if (value.isBlank() || value.length > 20) return false
         return !LOCATION_VERB_REGEX.containsMatchIn(value)
     }
 
-    private fun detectType(text: String): String = when {
+    private fun detectType(text: String, hasSchedulingHint: Boolean): String = when {
         text.contains("考") ||
             text.contains("期末") ||
             text.contains("期中") ||
             text.contains("测试") -> TYPE_EXAM
 
         text.contains("补课") || text.contains("实验") -> TYPE_MAKEUP
+
+        // 出现节次或周次，通常是在描述一次补课而非普通待办。
+        hasSchedulingHint -> TYPE_MAKEUP
         else -> TYPE_DAILY
     }
 

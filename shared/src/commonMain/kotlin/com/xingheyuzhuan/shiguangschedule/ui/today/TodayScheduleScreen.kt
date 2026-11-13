@@ -247,6 +247,7 @@ private fun ScheduleEvent.shortDateMeta(): String {
     ).joinToString(" ")
     val placeText = listOfNotNull(
         location?.takeIf { it.isNotBlank() },
+        teacher?.takeIf { it.isNotBlank() }?.let { "教师：$it" },
         detail?.takeIf { it.isNotBlank() }
     ).joinToString(" · ")
     return listOfNotNull(
@@ -269,7 +270,8 @@ public data class DraftState(
     val startTime: String = "",
     val endTime: String = "",
     val location: String = "",
-    val detail: String = ""
+    val detail: String = "",
+    val teacher: String = ""
 ) {
     val hasInput: Boolean
         get() = smartInput.isNotBlank() ||
@@ -278,6 +280,7 @@ public data class DraftState(
             endTime.isNotBlank() ||
             location.isNotBlank() ||
             detail.isNotBlank() ||
+            teacher.isNotBlank() ||
             type != "DAILY"
 }
 
@@ -289,7 +292,8 @@ private fun ScheduleEvent.toDraftState(): DraftState = DraftState(
     startTime = startTime.orEmpty(),
     endTime = endTime.orEmpty(),
     location = location.orEmpty(),
-    detail = detail.orEmpty()
+    detail = detail.orEmpty(),
+    teacher = teacher.orEmpty()
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -403,8 +407,8 @@ fun TodayScheduleScreen(
                 showAddSheet = false
                 fileManager.importFile(listOf("ics"))
             },
-            onConfirm = { title, type, date, startTime, endTime, location, detail ->
-                viewModel.addEvent(title, type, date, startTime, endTime, location, detail)
+            onConfirm = { title, type, date, startTime, endTime, location, detail, teacher ->
+                viewModel.addEvent(title, type, date, startTime, endTime, location, detail, teacher)
                 addDraft = null
                 showAddSheet = false
             },
@@ -420,7 +424,7 @@ fun TodayScheduleScreen(
             onDismiss = { editingEvent = null },
             onOpenNjuptSync = {},
             onImportIcs = {},
-            onConfirm = { _, _, _, _, _, _, _ -> },
+            onConfirm = { _, _, _, _, _, _, _, _ -> },
             onUpdate = { updated ->
                 viewModel.updateEvent(updated)
                 editingEvent = null
@@ -1118,6 +1122,7 @@ private fun ScheduleEventTimelineItem(
     val isDaily = event.type == "DAILY"
     val meta = listOfNotNull(
         event.location?.takeIf { it.isNotBlank() },
+        event.teacher?.takeIf { it.isNotBlank() }?.let { "教师：$it" },
         event.detail?.takeIf { it.isNotBlank() }
     ).joinToString(" · ")
 
@@ -1219,10 +1224,8 @@ fun ExamImportItem.toScheduleEvent(courseTableId: String = ""): ScheduleEvent = 
         .filter { it.isNotBlank() }
         .joinToString(" ")
         .ifBlank { null },
-    detail = listOfNotNull(teacher?.let { "教师: $it" }, note)
-        .filter { it.isNotBlank() }
-        .joinToString(" · ")
-        .ifBlank { null }
+    detail = note?.takeIf { it.isNotBlank() },
+    teacher = teacher?.takeIf { it.isNotBlank() }
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1235,7 +1238,7 @@ fun AddScheduleEventBottomSheet(
     onDismiss: () -> Unit,
     onOpenNjuptSync: () -> Unit,
     onImportIcs: () -> Unit,
-    onConfirm: (title: String, type: String, date: String, startTime: String?, endTime: String?, location: String?, detail: String?) -> Unit,
+    onConfirm: (title: String, type: String, date: String, startTime: String?, endTime: String?, location: String?, detail: String?, teacher: String?) -> Unit,
     onUpdate: (ScheduleEvent) -> Unit = {},
     onDelete: (ScheduleEvent) -> Unit = {},
     semesterStartDate: LocalDate? = null,
@@ -1372,14 +1375,24 @@ fun AddScheduleEventBottomSheet(
                     onApply = {
                         val parsedStart = result.startTime
                         updateDraft { current ->
+                            // 用户已手动切换到“自定义补课”时，解析出的普通日程不得覆盖其选择。
+                            val nextType = if (
+                                current.type == SmartScheduleParser.TYPE_MAKEUP &&
+                                result.type == SmartScheduleParser.TYPE_DAILY
+                            ) {
+                                current.type
+                            } else {
+                                result.type
+                            }
                             current.copy(
-                                type = result.type,
+                                type = nextType,
                                 title = result.title,
                                 date = result.date.toString(),
                                 isAllDay = parsedStart.isNullOrBlank(),
                                 startTime = parsedStart.orEmpty(),
                                 endTime = if (parsedStart.isNullOrBlank()) "" else result.endTime.orEmpty(),
                                 location = result.location?.takeIf { it.isNotBlank() } ?: current.location,
+                                teacher = result.teacher?.takeIf { it.isNotBlank() } ?: current.teacher,
                                 smartInput = ""
                             )
                         }
@@ -1549,6 +1562,17 @@ fun AddScheduleEventBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            if (workingDraft.type == "MAKEUP") {
+                OutlinedTextField(
+                    value = workingDraft.teacher,
+                    onValueChange = { value -> updateDraft { it.copy(teacher = value) } },
+                    label = { Text("任课教师（如：张老师）") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
             OutlinedTextField(
                 value = workingDraft.detail,
                 onValueChange = { value -> updateDraft { it.copy(detail = value) } },
@@ -1572,6 +1596,7 @@ fun AddScheduleEventBottomSheet(
                     }
                     val formLocation = workingDraft.location.takeIf { it.isNotBlank() }
                     val formDetail = workingDraft.detail.takeIf { it.isNotBlank() }
+                    val formTeacher = workingDraft.teacher.takeIf { it.isNotBlank() }
 
                     val base = initialEvent
                     if (base != null) {
@@ -1583,7 +1608,8 @@ fun AddScheduleEventBottomSheet(
                                 startTime = formStartTime,
                                 endTime = formEndTime,
                                 location = formLocation,
-                                detail = formDetail
+                                detail = formDetail,
+                                teacher = formTeacher
                             )
                         )
                     } else {
@@ -1594,7 +1620,8 @@ fun AddScheduleEventBottomSheet(
                             formStartTime,
                             formEndTime,
                             formLocation,
-                            formDetail
+                            formDetail,
+                            formTeacher
                         )
                     }
                 },
@@ -1748,6 +1775,10 @@ private fun SmartScheduleSuggestionCard(
         result.location?.takeIf { it.isNotBlank() }?.let { location ->
             append(" · ")
             append(location)
+        }
+        result.teacher?.takeIf { it.isNotBlank() }?.let { teacher ->
+            append(" · ")
+            append(teacher)
         }
         append(" · ")
         append(typeLabel)

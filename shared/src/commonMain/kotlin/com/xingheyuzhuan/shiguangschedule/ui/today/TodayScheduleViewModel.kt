@@ -148,7 +148,8 @@ class TodayScheduleViewModel(
         startTime: String? = null,
         endTime: String? = null,
         location: String? = null,
-        detail: String? = null
+        detail: String? = null,
+        teacher: String? = null
     ) {
         viewModelScope.launch {
             val settings = appSettingsRepository.getAppSettings().first()
@@ -161,7 +162,8 @@ class TodayScheduleViewModel(
                 startTime = startTime?.trim()?.takeIf { it.isNotBlank() },
                 endTime = endTime?.trim()?.takeIf { it.isNotBlank() },
                 location = location?.trim()?.takeIf { it.isNotBlank() },
-                detail = detail?.trim()?.takeIf { it.isNotBlank() }
+                detail = detail?.trim()?.takeIf { it.isNotBlank() },
+                teacher = teacher?.trim()?.takeIf { it.isNotBlank() }
             )
             scheduleEventRepository.insertEvent(event)
         }

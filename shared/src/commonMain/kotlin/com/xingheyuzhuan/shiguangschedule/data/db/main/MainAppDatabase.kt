@@ -22,12 +22,13 @@ import com.xingheyuzhuan.shiguangschedule.data.di.AppStorage
         TimeTableComboRule::class,
         ScheduleEvent::class
     ],
-    version = 8,
+    version = 9,
     autoMigrations = [
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5, spec = MainAppDatabase.RemoveAppSettingsSpec::class),
         AutoMigration(from = 6, to = 7),
-        AutoMigration(from = 7, to = 8)
+        AutoMigration(from = 7, to = 8),
+        AutoMigration(from = 8, to = 9)
     ],
     exportSchema = true
 )

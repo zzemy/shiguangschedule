@@ -194,11 +194,49 @@ class SmartScheduleParserTest {
         val result = SmartScheduleParser.parse("第1到16周 1-2节", today)
 
         assertNotNull(result)
-        assertEquals("新日程", result.title)
+        assertEquals("补课", result.title)
+        assertEquals(SmartScheduleParser.TYPE_MAKEUP, result.type)
         assertEquals(today, result.date)
         assertFalse(result.hasExplicitDate)
         assertEquals("08:00", result.startTime)
         assertEquals("09:35", result.endTime)
+    }
+
+    @Test
+    fun parsesNjuptBuildingWithMultipleRoomsAndTeachers() {
+        val result = SmartScheduleParser.parse(
+            "计算机学科楼405、407 宋和平、李博文、研究生 11周 周五6-7节",
+            today,
+            semesterStartDate = LocalDate(2026, 9, 7)
+        )
+
+        assertNotNull(result)
+        assertEquals("计算机学科楼405、407", result.location)
+        assertEquals("宋和平、李博文、研究生", result.teacher)
+        assertEquals(SmartScheduleParser.TYPE_MAKEUP, result.type)
+        assertEquals("补课", result.title)
+        assertEquals(LocalDate(2026, 11, 20), result.date)
+        assertEquals("14:00", result.startTime)
+        assertEquals("15:35", result.endTime)
+    }
+
+    @Test
+    fun extractsTeacherSuffixAndCourseName() {
+        val result = SmartScheduleParser.parse("周五6-7节 操作系统实验 张三老师", today)
+
+        assertNotNull(result)
+        assertEquals("张三", result.teacher)
+        assertEquals("操作系统实验", result.title)
+        assertEquals(SmartScheduleParser.TYPE_MAKEUP, result.type)
+    }
+
+    @Test
+    fun extractsSlashSeparatedRooms() {
+        val result = SmartScheduleParser.parse("周三3-4节 电子学科楼B201/B202 补课", today)
+
+        assertNotNull(result)
+        assertEquals("电子学科楼B201/B202", result.location)
+        assertEquals("补课", result.title)
     }
 
     @Test
